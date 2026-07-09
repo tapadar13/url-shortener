@@ -11,6 +11,7 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
+	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/transport/httpapi"
 )
 
@@ -34,6 +35,24 @@ func run(ctx context.Context) error {
 	slog.SetDefault(logger)
 
 	logger.Info("api service configured", "environment", cfg.Environment)
+
+	mongoClient, err := mongodb.Connect(ctx, cfg.MongoDB, cfg.RequestTimeout)
+	if err != nil {
+		return fmt.Errorf("connect MongoDB: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+
+		if err := mongoClient.Disconnect(shutdownCtx); err != nil {
+			logger.Error("MongoDB disconnect failed", "error", err)
+			return
+		}
+
+		logger.Info("MongoDB disconnected")
+	}()
+
+	logger.Info("MongoDB connected", "database", cfg.MongoDB.Database)
 
 	server := httpserver.New(cfg, httpapi.NewRouter())
 
