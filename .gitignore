@@ -1,0 +1,23 @@
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Go build artifacts
+bin/
+coverage.out
+*.test
+
+# Node dependencies and build output
+node_modules/
+.next/
+out/
+dist/
+
+# Logs
+*.log
+
