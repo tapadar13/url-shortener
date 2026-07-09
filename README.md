@@ -12,3 +12,26 @@ apps/
 
 The backend will be implemented first. The frontend will be added after the API is stable.
 
+## Local Development
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Start MongoDB:
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d
+```
+
+Run the API:
+
+```bash
+cd apps/api
+set -a
+source ../../.env
+set +a
+go run ./cmd/api
+```
