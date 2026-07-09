@@ -30,10 +30,15 @@ type NewParams struct {
 }
 
 func New(params NewParams) (URL, error) {
+	longURL := strings.TrimSpace(params.LongURL)
+	if normalizedURL, err := NormalizeLongURL(params.LongURL); err == nil {
+		longURL = normalizedURL
+	}
+
 	now := params.Now.UTC()
 
 	record := URL{
-		LongURL:     strings.TrimSpace(params.LongURL),
+		LongURL:     longURL,
 		ShortCode:   strings.TrimSpace(params.ShortCode),
 		AccessCount: 0,
 		CreatedAt:   now,
@@ -52,6 +57,8 @@ func (u URL) Validate() error {
 
 	if strings.TrimSpace(u.LongURL) == "" {
 		errs = append(errs, ErrLongURLRequired)
+	} else if err := ValidateLongURL(u.LongURL); err != nil {
+		errs = append(errs, err)
 	}
 
 	if strings.TrimSpace(u.ShortCode) == "" {
@@ -70,8 +77,13 @@ func (u URL) Validate() error {
 }
 
 func (u URL) WithLongURL(longURL string, now time.Time) (URL, error) {
+	normalizedURL, err := NormalizeLongURL(longURL)
+	if err != nil {
+		return URL{}, err
+	}
+
 	updated := u
-	updated.LongURL = strings.TrimSpace(longURL)
+	updated.LongURL = normalizedURL
 	updated.UpdatedAt = now.UTC()
 
 	if err := updated.Validate(); err != nil {
