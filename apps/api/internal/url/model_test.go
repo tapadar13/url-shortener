@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 )
 
 func TestNewCreatesURLRecord(t *testing.T) {
@@ -80,6 +82,24 @@ func TestValidateRejectsNegativeAccessCount(t *testing.T) {
 	err := record.Validate()
 	if !errors.Is(err, ErrNegativeAccesses) {
 		t.Fatalf("expected negative access error, got %v", err)
+	}
+}
+
+func TestValidateRejectsInvalidShortCode(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
+	record := URL{
+		LongURL:     "https://example.com",
+		ShortCode:   "abc-123",
+		AccessCount: 0,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	err := record.Validate()
+	if !errors.Is(err, shortcode.ErrInvalidChars) {
+		t.Fatalf("expected invalid short code error, got %v", err)
 	}
 }
 
