@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
@@ -12,13 +15,16 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "startup failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -33,9 +39,5 @@ func run() error {
 
 	logger.Info("api server starting", "addr", server.Addr)
 
-	if err := server.ListenAndServe(); err != nil {
-		return fmt.Errorf("listen and serve: %w", err)
-	}
-
-	return nil
+	return httpserver.Serve(ctx, server, cfg.ShutdownTimeout, logger)
 }
