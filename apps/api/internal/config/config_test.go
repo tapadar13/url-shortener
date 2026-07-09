@@ -1,0 +1,170 @@
+package config
+
+import (
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestLoadFromMapUsesDefaults(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadFromMap(nil)
+	if err != nil {
+		t.Fatalf("expected defaults to be valid: %v", err)
+	}
+
+	if cfg.Environment != EnvironmentDevelopment {
+		t.Fatalf("expected default environment %q, got %q", EnvironmentDevelopment, cfg.Environment)
+	}
+
+	if cfg.HTTP.Addr != ":8080" {
+		t.Fatalf("expected default HTTP address, got %q", cfg.HTTP.Addr)
+	}
+
+	if cfg.HTTP.BaseURL != "http://localhost:8080" {
+		t.Fatalf("expected default base URL, got %q", cfg.HTTP.BaseURL)
+	}
+
+	if cfg.MongoDB.Database != "url_shortener" {
+		t.Fatalf("expected default MongoDB database, got %q", cfg.MongoDB.Database)
+	}
+
+	if cfg.ShortCode.Length != 7 {
+		t.Fatalf("expected default short code length 7, got %d", cfg.ShortCode.Length)
+	}
+
+	if cfg.Redirect.StatusCode != 302 {
+		t.Fatalf("expected default redirect status 302, got %d", cfg.Redirect.StatusCode)
+	}
+
+	if cfg.RequestTimeout != 10*time.Second {
+		t.Fatalf("expected default request timeout 10s, got %s", cfg.RequestTimeout)
+	}
+}
+
+func TestLoadFromMapAppliesOverrides(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadFromMap(map[string]string{
+		"APP_ENV":                 EnvironmentProduction,
+		"HTTP_ADDR":               ":9090",
+		"BASE_URL":                "https://sho.rt/",
+		"MONGODB_URI":             "mongodb://mongo:27017",
+		"MONGODB_DATABASE":        "links",
+		"MONGODB_URLS_COLLECTION": "short_urls",
+		"SHORT_CODE_LENGTH":       "9",
+		"SHORT_CODE_MAX_RETRIES":  "12",
+		"REDIRECT_STATUS":         "307",
+		"LOG_LEVEL":               LogLevelWarn,
+		"LOG_FORMAT":              LogFormatJSON,
+		"REQUEST_TIMEOUT":         "3s",
+		"SHUTDOWN_TIMEOUT":        "15s",
+	})
+	if err != nil {
+		t.Fatalf("expected overrides to be valid: %v", err)
+	}
+
+	if cfg.Environment != EnvironmentProduction {
+		t.Fatalf("expected production environment, got %q", cfg.Environment)
+	}
+
+	if cfg.HTTP.Addr != ":9090" {
+		t.Fatalf("expected overridden HTTP address, got %q", cfg.HTTP.Addr)
+	}
+
+	if cfg.HTTP.BaseURL != "https://sho.rt" {
+		t.Fatalf("expected trailing slash to be trimmed, got %q", cfg.HTTP.BaseURL)
+	}
+
+	if cfg.MongoDB.URI != "mongodb://mongo:27017" {
+		t.Fatalf("expected overridden MongoDB URI, got %q", cfg.MongoDB.URI)
+	}
+
+	if cfg.MongoDB.URLsCollection != "short_urls" {
+		t.Fatalf("expected overridden MongoDB collection, got %q", cfg.MongoDB.URLsCollection)
+	}
+
+	if cfg.ShortCode.Length != 9 || cfg.ShortCode.MaxRetries != 12 {
+		t.Fatalf("expected overridden short code config, got %+v", cfg.ShortCode)
+	}
+
+	if cfg.Redirect.StatusCode != 307 {
+		t.Fatalf("expected redirect status 307, got %d", cfg.Redirect.StatusCode)
+	}
+
+	if cfg.Log.Level != LogLevelWarn || cfg.Log.Format != LogFormatJSON {
+		t.Fatalf("expected overridden log config, got %+v", cfg.Log)
+	}
+
+	if cfg.RequestTimeout != 3*time.Second || cfg.ShutdownTimeout != 15*time.Second {
+		t.Fatalf("expected overridden timeouts, got request=%s shutdown=%s", cfg.RequestTimeout, cfg.ShutdownTimeout)
+	}
+}
+
+func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := LoadFromMap(map[string]string{
+		"APP_ENV":                 "staging",
+		"HTTP_ADDR":               " ",
+		"BASE_URL":                "localhost:8080",
+		"MONGODB_URI":             " ",
+		"MONGODB_DATABASE":        " ",
+		"MONGODB_URLS_COLLECTION": " ",
+		"SHORT_CODE_LENGTH":       "3",
+		"SHORT_CODE_MAX_RETRIES":  "0",
+		"REDIRECT_STATUS":         "200",
+		"LOG_LEVEL":               "trace",
+		"LOG_FORMAT":              "pretty",
+		"REQUEST_TIMEOUT":         "0s",
+		"SHUTDOWN_TIMEOUT":        "-1s",
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if cfg != (Config{}) {
+		t.Fatalf("expected empty config on validation failure, got %+v", cfg)
+	}
+
+	message := err.Error()
+	for _, expected := range []string{
+		"APP_ENV",
+		"HTTP_ADDR",
+		"BASE_URL",
+		"MONGODB_URI",
+		"MONGODB_DATABASE",
+		"MONGODB_URLS_COLLECTION",
+		"SHORT_CODE_LENGTH",
+		"SHORT_CODE_MAX_RETRIES",
+		"REDIRECT_STATUS",
+		"LOG_LEVEL",
+		"LOG_FORMAT",
+		"REQUEST_TIMEOUT",
+		"SHUTDOWN_TIMEOUT",
+	} {
+		if !strings.Contains(message, expected) {
+			t.Fatalf("expected validation error to include %s, got %q", expected, message)
+		}
+	}
+}
+
+func TestLoadFromMapRejectsUnparseableValues(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFromMap(map[string]string{
+		"SHORT_CODE_LENGTH":      "invalid",
+		"SHORT_CODE_MAX_RETRIES": "invalid",
+		"REDIRECT_STATUS":        "invalid",
+		"REQUEST_TIMEOUT":        "invalid",
+		"SHUTDOWN_TIMEOUT":       "invalid",
+	})
+	if err == nil {
+		t.Fatal("expected parsing error")
+	}
+
+	if !strings.Contains(err.Error(), "SHORT_CODE_LENGTH") {
+		t.Fatalf("expected parsing error to include SHORT_CODE_LENGTH, got %q", err.Error())
+	}
+}
