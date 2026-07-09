@@ -54,6 +54,12 @@ func run(ctx context.Context) error {
 
 	logger.Info("MongoDB connected", "database", cfg.MongoDB.Database)
 
+	if err := mongodb.EnsureIndexes(ctx, mongoClient); err != nil {
+		return fmt.Errorf("ensure MongoDB indexes: %w", err)
+	}
+
+	logger.Info("MongoDB indexes ready", "collection", cfg.MongoDB.URLsCollection)
+
 	server := httpserver.New(cfg, httpapi.NewRouter())
 
 	logger.Info("api server starting", "addr", server.Addr)
