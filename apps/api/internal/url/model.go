@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 	"time"
+
+	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 )
 
 var (
@@ -35,11 +37,16 @@ func New(params NewParams) (URL, error) {
 		longURL = normalizedURL
 	}
 
+	shortCode := strings.TrimSpace(params.ShortCode)
+	if normalizedShortCode, err := shortcode.Normalize(params.ShortCode); err == nil {
+		shortCode = normalizedShortCode
+	}
+
 	now := params.Now.UTC()
 
 	record := URL{
 		LongURL:     longURL,
-		ShortCode:   strings.TrimSpace(params.ShortCode),
+		ShortCode:   shortCode,
 		AccessCount: 0,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -63,6 +70,8 @@ func (u URL) Validate() error {
 
 	if strings.TrimSpace(u.ShortCode) == "" {
 		errs = append(errs, ErrShortCodeRequired)
+	} else if err := shortcode.Validate(u.ShortCode); err != nil {
+		errs = append(errs, err)
 	}
 
 	if u.CreatedAt.IsZero() || u.UpdatedAt.IsZero() {
