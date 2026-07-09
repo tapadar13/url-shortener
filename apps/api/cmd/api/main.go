@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
+	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
+	"github.com/tapadar13/url-shortener/apps/api/internal/transport/httpapi"
 )
 
 func main() {
@@ -26,6 +28,14 @@ func run() error {
 	slog.SetDefault(logger)
 
 	logger.Info("api service configured", "environment", cfg.Environment)
+
+	server := httpserver.New(cfg, httpapi.NewRouter())
+
+	logger.Info("api server starting", "addr", server.Addr)
+
+	if err := server.ListenAndServe(); err != nil {
+		return fmt.Errorf("listen and serve: %w", err)
+	}
 
 	return nil
 }
