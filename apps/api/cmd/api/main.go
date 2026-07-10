@@ -86,10 +86,16 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL update service: %w", err)
 	}
 
+	urlDeleter, err := service.NewDeleteService(urlRepository)
+	if err != nil {
+		return fmt.Errorf("create URL delete service: %w", err)
+	}
+
 	server := httpserver.New(cfg, httpapi.NewRouter(httpapi.Dependencies{
 		URLCreator: urlCreator,
 		URLFinder:  urlFinder,
 		URLUpdater: urlUpdater,
+		URLDeleter: urlDeleter,
 	}))
 
 	logger.Info("api server starting", "addr", server.Addr)

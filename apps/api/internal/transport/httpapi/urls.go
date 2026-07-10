@@ -72,11 +72,22 @@ func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
 		if err != nil {
-			writeGetURLError(w, err)
+			writeShortCodeURLError(w, err)
 			return
 		}
 
 		writeJSON(w, http.StatusOK, newURLResponse(found))
+	}
+}
+
+func newDeleteURLHandler(deleter URLDeleter) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode")); err != nil {
+			writeShortCodeURLError(w, err)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -119,7 +130,7 @@ func writeCreateURLError(w http.ResponseWriter, err error) {
 	}
 }
 
-func writeGetURLError(w http.ResponseWriter, err error) {
+func writeShortCodeURLError(w http.ResponseWriter, err error) {
 	switch {
 	case isShortCodeError(err):
 		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")

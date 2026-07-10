@@ -21,10 +21,15 @@ type URLUpdater interface {
 	UpdateLongURL(ctx context.Context, params service.UpdateParams) (urlmodel.URL, error)
 }
 
+type URLDeleter interface {
+	DeleteByShortCode(ctx context.Context, shortCode string) error
+}
+
 type Dependencies struct {
 	URLCreator URLCreator
 	URLFinder  URLFinder
 	URLUpdater URLUpdater
+	URLDeleter URLDeleter
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -43,6 +48,10 @@ func NewRouter(dependencies Dependencies) http.Handler {
 
 	if dependencies.URLUpdater != nil {
 		router.Put("/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
+	}
+
+	if dependencies.URLDeleter != nil {
+		router.Delete("/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
 	}
 
 	return router
