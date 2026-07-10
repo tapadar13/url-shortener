@@ -13,6 +13,8 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/transport/httpapi"
+	urlrepository "github.com/tapadar13/url-shortener/apps/api/internal/url/repository/mongodb"
+	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
 
 func main() {
@@ -60,7 +62,21 @@ func run(ctx context.Context) error {
 
 	logger.Info("MongoDB indexes ready", "collection", cfg.MongoDB.URLsCollection)
 
-	server := httpserver.New(cfg, httpapi.NewRouter())
+	urlCreator, err := service.New(
+		urlrepository.New(mongoClient.URLsCollection()),
+		service.DefaultGenerator(),
+		service.Options{
+			ShortCodeLength: cfg.ShortCode.Length,
+			MaxRetries:      cfg.ShortCode.MaxRetries,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("create URL service: %w", err)
+	}
+
+	server := httpserver.New(cfg, httpapi.NewRouter(httpapi.Dependencies{
+		URLCreator: urlCreator,
+	}))
 
 	logger.Info("api server starting", "addr", server.Addr)
 
