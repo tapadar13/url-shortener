@@ -135,5 +135,12 @@
   }
   html {
     @apply font-sans;
+    scroll-padding-top: 4.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
