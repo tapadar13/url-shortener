@@ -137,6 +137,91 @@ func TestRepositoryCreateRejectsUnexpectedInsertedID(t *testing.T) {
 	}
 }
 
+func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	id := bson.NewObjectID()
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:          id,
+			LongURL:     record.LongURL,
+			ShortCode:   record.ShortCode,
+			AccessCount: 8,
+			CreatedAt:   record.CreatedAt,
+			UpdatedAt:   record.UpdatedAt,
+		}, nil, nil),
+	}
+	repository := newRepository(collection)
+
+	found, err := repository.FindByShortCode(context.Background(), " "+record.ShortCode+" ")
+	if err != nil {
+		t.Fatalf("expected URL to be found: %v", err)
+	}
+
+	if collection.findCount != 1 {
+		t.Fatalf("expected one lookup, got %d", collection.findCount)
+	}
+
+	filter, ok := collection.filter.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON filter, got %T", collection.filter)
+	}
+
+	if len(filter) != 1 || filter[0].Key != "short_code" || filter[0].Value != record.ShortCode {
+		t.Fatalf("expected short code filter, got %#v", filter)
+	}
+
+	if found.ID != id.Hex() || found.LongURL != record.LongURL || found.AccessCount != 8 {
+		t.Fatalf("expected found URL record, got %#v", found)
+	}
+}
+
+func TestRepositoryFindByShortCodeMapsMissingDocument(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(bson.D{}, mongo.ErrNoDocuments, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryFindByShortCodeValidatesShortCodeBeforeQuerying(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "invalid-code")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.findCount != 0 {
+		t.Fatalf("expected no lookup, got %d", collection.findCount)
+	}
+}
+
+func TestRepositoryFindByShortCodeWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("query failed")
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(bson.D{}, expectedErr, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected query error, got %v", err)
+	}
+}
+
 func newValidURLRecord(t *testing.T) urlmodel.URL {
 	t.Helper()
 
@@ -157,6 +242,9 @@ type fakeInsertOneCollection struct {
 	result      *mongo.InsertOneResult
 	err         error
 	insertCount int
+	filter      any
+	findResult  *mongo.SingleResult
+	findCount   int
 }
 
 func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error) {
@@ -164,4 +252,11 @@ func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ .
 	c.document = document
 
 	return c.result, c.err
+}
+
+func (c *fakeInsertOneCollection) FindOne(_ context.Context, filter any, _ ...options.Lister[options.FindOneOptions]) *mongo.SingleResult {
+	c.findCount++
+	c.filter = filter
+
+	return c.findResult
 }
