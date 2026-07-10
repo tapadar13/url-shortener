@@ -214,6 +214,93 @@ func TestRouterMapsUnexpectedLookupErrorToInternalServerError(t *testing.T) {
 	assertAPIError(t, response, "internal_error")
 }
 
+func TestRouterUpdatesShortURL(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	updater := &fakeURLUpdater{
+		updated: urlmodel.URL{
+			ID:        "507f1f77bcf86cd799439011",
+			LongURL:   "https://example.com/updated",
+			ShortCode: "AbC123",
+			CreatedAt: updatedAt.Add(-time.Hour),
+			UpdatedAt: updatedAt,
+		},
+	}
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com/updated"}`)
+
+	assertStatus(t, response, http.StatusOK)
+	assertJSONContentType(t, response)
+
+	var body urlResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("expected JSON response: %v", err)
+	}
+
+	if body.ID != updater.updated.ID || body.URL != updater.updated.LongURL || body.ShortCode != updater.updated.ShortCode {
+		t.Fatalf("expected updated URL response, got %#v", body)
+	}
+
+	if updater.params.ShortCode != "AbC123" || updater.params.LongURL != "https://example.com/updated" {
+		t.Fatalf("expected update params, got %#v", updater.params)
+	}
+}
+
+func TestRouterRejectsInvalidUpdateURLRequest(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com","unexpected":true}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_request")
+
+	if updater.called {
+		t.Fatal("expected update service not to be called")
+	}
+}
+
+func TestRouterMapsInvalidUpdateURLToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{err: urlmodel.ErrLongURLSchemeUnsupported}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"ftp://example.com"}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_url")
+}
+
+func TestRouterMapsInvalidUpdateShortCodeToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{err: shortcode.ErrInvalidChars}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/invalid-code", `{"url":"https://example.com"}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_short_code")
+}
+
+func TestRouterMapsMissingUpdateURLToNotFound(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{err: urlmodel.ErrNotFound}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com"}`)
+
+	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsUnexpectedUpdateErrorToInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{err: errors.New("database unavailable")}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com"}`)
+
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertAPIError(t, response, "internal_error")
+}
+
 func executeRequestWithBody(t *testing.T, router http.Handler, method string, path string, body string) *http.Response {
 	t.Helper()
 
@@ -285,4 +372,22 @@ func (f *fakeURLFinder) GetByShortCode(_ context.Context, shortCode string) (url
 	}
 
 	return f.found, nil
+}
+
+type fakeURLUpdater struct {
+	updated urlmodel.URL
+	err     error
+	params  service.UpdateParams
+	called  bool
+}
+
+func (u *fakeURLUpdater) UpdateLongURL(_ context.Context, params service.UpdateParams) (urlmodel.URL, error) {
+	u.called = true
+	u.params = params
+
+	if u.err != nil {
+		return urlmodel.URL{}, u.err
+	}
+
+	return u.updated, nil
 }
