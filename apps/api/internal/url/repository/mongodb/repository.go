@@ -24,10 +24,15 @@ type findOneAndUpdateCollection interface {
 	FindOneAndUpdate(ctx context.Context, filter any, update any, opts ...options.Lister[options.FindOneAndUpdateOptions]) *mongo.SingleResult
 }
 
+type deleteOneCollection interface {
+	DeleteOne(ctx context.Context, filter any, opts ...options.Lister[options.DeleteOneOptions]) (*mongo.DeleteResult, error)
+}
+
 type collection interface {
 	insertOneCollection
 	findOneCollection
 	findOneAndUpdateCollection
+	deleteOneCollection
 }
 
 type Repository struct {
@@ -166,4 +171,30 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 	}
 
 	return updated, nil
+}
+
+func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) error {
+	if r == nil || r.collection == nil {
+		return errors.New("MongoDB URL collection is required")
+	}
+
+	normalizedShortCode, err := shortcode.Normalize(shortCode)
+	if err != nil {
+		return err
+	}
+
+	result, err := r.collection.DeleteOne(ctx, bson.D{{Key: "short_code", Value: normalizedShortCode}})
+	if err != nil {
+		return fmt.Errorf("delete URL by short code: %w", err)
+	}
+
+	if result == nil {
+		return errors.New("delete URL by short code: missing result")
+	}
+
+	if result.DeletedCount == 0 {
+		return fmt.Errorf("%w: %s", urlmodel.ErrNotFound, normalizedShortCode)
+	}
+
+	return nil
 }
