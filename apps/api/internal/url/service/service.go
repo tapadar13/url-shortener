@@ -25,6 +25,10 @@ type ShortCodeGenerator interface {
 	Generate(length int) (string, error)
 }
 
+type CreateRepository interface {
+	Create(ctx context.Context, record urlmodel.URL) (urlmodel.URL, error)
+}
+
 type Options struct {
 	ShortCodeLength int
 	MaxRetries      int
@@ -32,7 +36,7 @@ type Options struct {
 }
 
 type Service struct {
-	repository      urlmodel.Repository
+	repository      CreateRepository
 	generator       ShortCodeGenerator
 	shortCodeLength int
 	maxRetries      int
@@ -43,7 +47,7 @@ type CreateParams struct {
 	LongURL string
 }
 
-func New(repository urlmodel.Repository, generator ShortCodeGenerator, options Options) (*Service, error) {
+func New(repository CreateRepository, generator ShortCodeGenerator, options Options) (*Service, error) {
 	if repository == nil {
 		return nil, ErrRepositoryRequired
 	}
