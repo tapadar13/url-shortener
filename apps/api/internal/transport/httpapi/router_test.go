@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
@@ -88,7 +89,7 @@ func TestRouterCreatesShortURL(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	assertJSONContentType(t, response)
 
-	var body createURLResponse
+	var body urlResponse
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("expected JSON response: %v", err)
 	}
@@ -150,6 +151,69 @@ func TestRouterMapsUnexpectedCreateErrorToInternalServerError(t *testing.T) {
 	assertAPIError(t, response, "internal_error")
 }
 
+func TestRouterGetsShortURL(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	finder := &fakeURLFinder{
+		found: urlmodel.URL{
+			ID:        "507f1f77bcf86cd799439011",
+			LongURL:   "https://example.com/articles/123",
+			ShortCode: "AbC123",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+	}
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusOK)
+	assertJSONContentType(t, response)
+
+	var body urlResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("expected JSON response: %v", err)
+	}
+
+	if body.ID != finder.found.ID || body.URL != finder.found.LongURL || body.ShortCode != finder.found.ShortCode {
+		t.Fatalf("expected found URL response, got %#v", body)
+	}
+
+	if finder.shortCode != "AbC123" {
+		t.Fatalf("expected short code AbC123, got %q", finder.shortCode)
+	}
+}
+
+func TestRouterMapsInvalidShortCodeToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	finder := &fakeURLFinder{err: shortcode.ErrInvalidChars}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/invalid-code", "")
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_short_code")
+}
+
+func TestRouterMapsMissingShortURLToNotFound(t *testing.T) {
+	t.Parallel()
+
+	finder := &fakeURLFinder{err: urlmodel.ErrNotFound}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsUnexpectedLookupErrorToInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	finder := &fakeURLFinder{err: errors.New("database unavailable")}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertAPIError(t, response, "internal_error")
+}
+
 func executeRequestWithBody(t *testing.T, router http.Handler, method string, path string, body string) *http.Response {
 	t.Helper()
 
@@ -205,4 +269,20 @@ func (c *fakeURLCreator) Create(_ context.Context, params service.CreateParams) 
 	}
 
 	return c.created, nil
+}
+
+type fakeURLFinder struct {
+	found     urlmodel.URL
+	err       error
+	shortCode string
+}
+
+func (f *fakeURLFinder) GetByShortCode(_ context.Context, shortCode string) (urlmodel.URL, error) {
+	f.shortCode = shortCode
+
+	if f.err != nil {
+		return urlmodel.URL{}, f.err
+	}
+
+	return f.found, nil
 }
