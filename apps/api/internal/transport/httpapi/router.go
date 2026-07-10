@@ -13,8 +13,13 @@ type URLCreator interface {
 	Create(ctx context.Context, params service.CreateParams) (urlmodel.URL, error)
 }
 
+type URLFinder interface {
+	GetByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error)
+}
+
 type Dependencies struct {
 	URLCreator URLCreator
+	URLFinder  URLFinder
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -25,6 +30,10 @@ func NewRouter(dependencies Dependencies) http.Handler {
 
 	if dependencies.URLCreator != nil {
 		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))
+	}
+
+	if dependencies.URLFinder != nil {
+		router.Get("/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
 	}
 
 	return router

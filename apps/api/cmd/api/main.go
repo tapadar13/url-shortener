@@ -62,8 +62,10 @@ func run(ctx context.Context) error {
 
 	logger.Info("MongoDB indexes ready", "collection", cfg.MongoDB.URLsCollection)
 
+	urlRepository := urlrepository.New(mongoClient.URLsCollection())
+
 	urlCreator, err := service.New(
-		urlrepository.New(mongoClient.URLsCollection()),
+		urlRepository,
 		service.DefaultGenerator(),
 		service.Options{
 			ShortCodeLength: cfg.ShortCode.Length,
@@ -74,8 +76,14 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL service: %w", err)
 	}
 
+	urlFinder, err := service.NewLookupService(urlRepository)
+	if err != nil {
+		return fmt.Errorf("create URL lookup service: %w", err)
+	}
+
 	server := httpserver.New(cfg, httpapi.NewRouter(httpapi.Dependencies{
 		URLCreator: urlCreator,
+		URLFinder:  urlFinder,
 	}))
 
 	logger.Info("api server starting", "addr", server.Addr)

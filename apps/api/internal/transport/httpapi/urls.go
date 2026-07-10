@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
@@ -17,7 +19,7 @@ type createURLRequest struct {
 	URL string `json:"url"`
 }
 
-type createURLResponse struct {
+type urlResponse struct {
 	ID        string    `json:"id"`
 	URL       string    `json:"url"`
 	ShortCode string    `json:"shortCode"`
@@ -41,13 +43,29 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, createURLResponse{
-			ID:        created.ID,
-			URL:       created.LongURL,
-			ShortCode: created.ShortCode,
-			CreatedAt: created.CreatedAt,
-			UpdatedAt: created.UpdatedAt,
-		})
+		writeJSON(w, http.StatusCreated, newURLResponse(created))
+	}
+}
+
+func newGetURLHandler(finder URLFinder) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		if err != nil {
+			writeGetURLError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, newURLResponse(found))
+	}
+}
+
+func newURLResponse(record urlmodel.URL) urlResponse {
+	return urlResponse{
+		ID:        record.ID,
+		URL:       record.LongURL,
+		ShortCode: record.ShortCode,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
 	}
 }
 
@@ -80,10 +98,29 @@ func writeCreateURLError(w http.ResponseWriter, err error) {
 	}
 }
 
+func writeGetURLError(w http.ResponseWriter, err error) {
+	switch {
+	case isShortCodeError(err):
+		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
+	case errors.Is(err, urlmodel.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "short URL was not found")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
+	}
+}
+
 func isLongURLError(err error) bool {
 	return errors.Is(err, urlmodel.ErrLongURLRequired) ||
 		errors.Is(err, urlmodel.ErrLongURLTooLong) ||
 		errors.Is(err, urlmodel.ErrLongURLInvalid) ||
 		errors.Is(err, urlmodel.ErrLongURLSchemeUnsupported) ||
 		errors.Is(err, urlmodel.ErrLongURLHostRequired)
+}
+
+func isShortCodeError(err error) bool {
+	return errors.Is(err, shortcode.ErrRequired) ||
+		errors.Is(err, shortcode.ErrTooShort) ||
+		errors.Is(err, shortcode.ErrTooLong) ||
+		errors.Is(err, shortcode.ErrInvalidChars) ||
+		errors.Is(err, shortcode.ErrReserved)
 }
