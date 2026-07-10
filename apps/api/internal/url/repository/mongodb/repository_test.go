@@ -323,6 +323,71 @@ func TestRepositoryUpdateLongURLWrapsQueryError(t *testing.T) {
 	}
 }
 
+func TestRepositoryDeleteByShortCodeDeletesURL(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		deleteResult: &mongo.DeleteResult{
+			DeletedCount: 1,
+			Acknowledged: true,
+		},
+	}
+	repository := newRepository(collection)
+
+	if err := repository.DeleteByShortCode(context.Background(), " AbC123 "); err != nil {
+		t.Fatalf("expected URL deletion to succeed: %v", err)
+	}
+
+	if collection.deleteCount != 1 {
+		t.Fatalf("expected one delete, got %d", collection.deleteCount)
+	}
+
+	assertShortCodeFilter(t, collection.deleteFilter, "AbC123")
+}
+
+func TestRepositoryDeleteByShortCodeMapsMissingURL(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		deleteResult: &mongo.DeleteResult{Acknowledged: true},
+	}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryDeleteByShortCodeValidatesShortCodeBeforeDeleting(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "invalid-code")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.deleteCount != 0 {
+		t.Fatalf("expected no delete, got %d", collection.deleteCount)
+	}
+}
+
+func TestRepositoryDeleteByShortCodeWrapsDeleteError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("delete failed")
+	collection := &fakeInsertOneCollection{deleteErr: expectedErr}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected delete error, got %v", err)
+	}
+}
+
 func assertShortCodeFilter(t *testing.T, value any, shortCode string) {
 	t.Helper()
 
@@ -401,6 +466,10 @@ type fakeInsertOneCollection struct {
 	updateOptions []options.Lister[options.FindOneAndUpdateOptions]
 	updateResult  *mongo.SingleResult
 	updateCount   int
+	deleteFilter  any
+	deleteResult  *mongo.DeleteResult
+	deleteErr     error
+	deleteCount   int
 }
 
 func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error) {
@@ -424,4 +493,11 @@ func (c *fakeInsertOneCollection) FindOneAndUpdate(_ context.Context, filter any
 	c.updateOptions = options
 
 	return c.updateResult
+}
+
+func (c *fakeInsertOneCollection) DeleteOne(_ context.Context, filter any, _ ...options.Lister[options.DeleteOneOptions]) (*mongo.DeleteResult, error) {
+	c.deleteCount++
+	c.deleteFilter = filter
+
+	return c.deleteResult, c.deleteErr
 }
