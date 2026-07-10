@@ -43,6 +43,7 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	if dependencies.URLFinder != nil {
+		router.Get("/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
 		router.Get("/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
 	}
 

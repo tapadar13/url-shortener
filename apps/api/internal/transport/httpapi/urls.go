@@ -27,6 +27,16 @@ type urlResponse struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+type urlStatsResponse struct {
+	ID             string     `json:"id"`
+	URL            string     `json:"url"`
+	ShortCode      string     `json:"shortCode"`
+	AccessCount    int64      `json:"accessCount"`
+	CreatedAt      time.Time  `json:"createdAt"`
+	UpdatedAt      time.Time  `json:"updatedAt"`
+	LastAccessedAt *time.Time `json:"lastAccessedAt,omitempty"`
+}
+
 func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request urlRequest
@@ -80,6 +90,18 @@ func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 	}
 }
 
+func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		if err != nil {
+			writeShortCodeURLError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, newURLStatsResponse(found))
+	}
+}
+
 func newDeleteURLHandler(deleter URLDeleter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode")); err != nil {
@@ -98,6 +120,18 @@ func newURLResponse(record urlmodel.URL) urlResponse {
 		ShortCode: record.ShortCode,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
+	}
+}
+
+func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
+	return urlStatsResponse{
+		ID:             record.ID,
+		URL:            record.LongURL,
+		ShortCode:      record.ShortCode,
+		AccessCount:    record.AccessCount,
+		CreatedAt:      record.CreatedAt,
+		UpdatedAt:      record.UpdatedAt,
+		LastAccessedAt: record.LastAccessedAt,
 	}
 }
 
