@@ -81,9 +81,15 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL lookup service: %w", err)
 	}
 
+	urlUpdater, err := service.NewUpdateService(urlRepository, service.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("create URL update service: %w", err)
+	}
+
 	server := httpserver.New(cfg, httpapi.NewRouter(httpapi.Dependencies{
 		URLCreator: urlCreator,
 		URLFinder:  urlFinder,
+		URLUpdater: urlUpdater,
 	}))
 
 	logger.Info("api server starting", "addr", server.Addr)

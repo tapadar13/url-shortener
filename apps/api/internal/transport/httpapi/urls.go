@@ -13,9 +13,9 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
 
-const maxCreateURLRequestBodyBytes = 1 << 20
+const maxURLRequestBodyBytes = 1 << 20
 
-type createURLRequest struct {
+type urlRequest struct {
 	URL string `json:"url"`
 }
 
@@ -29,8 +29,8 @@ type urlResponse struct {
 
 func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var request createURLRequest
-		if err := decodeCreateURLRequest(w, r, &request); err != nil {
+		var request urlRequest
+		if err := decodeURLRequest(w, r, &request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid_request", "request body must contain only a URL field")
 			return
 		}
@@ -44,6 +44,27 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusCreated, newURLResponse(created))
+	}
+}
+
+func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request urlRequest
+		if err := decodeURLRequest(w, r, &request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid_request", "request body must contain only a URL field")
+			return
+		}
+
+		updated, err := updater.UpdateLongURL(r.Context(), service.UpdateParams{
+			ShortCode: chi.URLParam(r, "shortCode"),
+			LongURL:   request.URL,
+		})
+		if err != nil {
+			writeUpdateURLError(w, err)
+			return
+		}
+
+		writeJSON(w, http.StatusOK, newURLResponse(updated))
 	}
 }
 
@@ -69,8 +90,8 @@ func newURLResponse(record urlmodel.URL) urlResponse {
 	}
 }
 
-func decodeCreateURLRequest(w http.ResponseWriter, r *http.Request, request *createURLRequest) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxCreateURLRequestBodyBytes)
+func decodeURLRequest(w http.ResponseWriter, r *http.Request, request *urlRequest) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxURLRequestBodyBytes)
 	defer r.Body.Close()
 
 	decoder := json.NewDecoder(r.Body)
@@ -102,6 +123,19 @@ func writeGetURLError(w http.ResponseWriter, err error) {
 	switch {
 	case isShortCodeError(err):
 		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
+	case errors.Is(err, urlmodel.ErrNotFound):
+		writeError(w, http.StatusNotFound, "not_found", "short URL was not found")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
+	}
+}
+
+func writeUpdateURLError(w http.ResponseWriter, err error) {
+	switch {
+	case isShortCodeError(err):
+		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
+	case isLongURLError(err):
+		writeError(w, http.StatusBadRequest, "invalid_url", "url must be a valid http or https URL")
 	case errors.Is(err, urlmodel.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "short URL was not found")
 	default:
