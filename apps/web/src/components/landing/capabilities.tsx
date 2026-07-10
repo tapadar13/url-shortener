@@ -1,6 +1,7 @@
-import { Check, Copy, Link2 } from "lucide-react"
+import { ArrowDown, Check, Copy, Link2 } from "lucide-react"
 
 import { MockWindow } from "@/components/landing/mock-window"
+import { Reveal } from "@/components/landing/reveal"
 import { siteConfig } from "@/config/site"
 import { cn } from "@/lib/utils"
 
@@ -76,6 +77,9 @@ function ManageMockup() {
             </span>
           </div>
         </div>
+        <div className="flex justify-center" aria-hidden="true">
+          <ArrowDown className="size-3.5 text-muted-foreground/60" />
+        </div>
         <div>
           <FieldLabel>New destination</FieldLabel>
           <div className="mt-1 flex h-9 items-center justify-between gap-2 rounded-md border border-brand/40 bg-background px-3">
@@ -117,18 +121,18 @@ function StatsMockup() {
             <p className="mt-1 font-mono text-2xl font-semibold">2m ago</p>
           </div>
         </div>
-        <div className="space-y-1.5 rounded-md border p-3 font-mono text-[11px] text-muted-foreground">
+        <div className="space-y-1.5 rounded-md border p-3 text-[11px] text-muted-foreground">
           <p className="flex items-center justify-between">
-            <span>created_at</span>
-            <span className="text-foreground">2026-06-12 09:41 UTC</span>
+            <span>Created</span>
+            <span className="font-mono text-foreground">Jun 12, 09:41 UTC</span>
           </p>
           <p className="flex items-center justify-between">
-            <span>updated_at</span>
-            <span className="text-foreground">2026-07-01 14:03 UTC</span>
+            <span>Destination updated</span>
+            <span className="font-mono text-foreground">Jul 1, 14:03 UTC</span>
           </p>
           <p className="flex items-center justify-between">
-            <span>last_accessed_at</span>
-            <span className="text-foreground">2026-07-10 08:12 UTC</span>
+            <span>Last visited</span>
+            <span className="font-mono text-foreground">Jul 10, 08:12 UTC</span>
           </p>
         </div>
       </div>
@@ -140,33 +144,33 @@ const capabilities = [
   {
     eyebrow: "Create",
     title: "Clean short links, on the first try",
-    body: "Paste any HTTP or HTTPS destination and get back a compact six-character Base62 code. Codes are random, checked against a unique index, and retried on the rare collision — so every link you mint is genuinely one of a kind.",
+    body: "Paste any web address and get back a compact six-character link. Every code is checked for uniqueness before it's issued — so the link you share is yours, and yours alone.",
     bullets: [
-      "Destinations validated before a code is issued",
-      "Random Base62 codes with collision retries",
-      "A consistent JSON response for every request",
+      "Destinations validated before a link is created",
+      "Unique codes, guaranteed — collisions retried automatically",
+      "The same clean JSON API behind every action",
     ],
     mockup: CreateMockup,
   },
   {
     eyebrow: "Manage",
-    title: "Destinations you can change your mind about",
-    body: "A short link shouldn't be a one-way door. Repoint an existing code to a new destination without breaking anything already shared — the code stays stable, the timestamps record the change, and the visit history carries over.",
+    title: "Change where a link points — anytime",
+    body: "A short link shouldn't be a one-way door. Point an existing link at a new destination without breaking anything you've already shared: the short link stays the same, and its visit history carries over.",
     bullets: [
-      "Update a destination while the short code stays put",
-      "Created and updated timestamps on every link",
+      "Update the destination; the short link never changes",
+      "Every change is timestamped",
       "Delete links you're finished with",
     ],
     mockup: ManageMockup,
   },
   {
     eyebrow: "Measure",
-    title: "Track visits without the clutter",
-    body: "Each redirect is designed to increment one honest counter, atomically, at the moment it happens. You get the numbers that matter — total visits and when they occurred — without a vanity dashboard in the way.",
+    title: "Know exactly how often it's opened",
+    body: "Every visit bumps one honest counter the moment the redirect happens. You get the numbers that matter — total visits and when they happened — without a vanity dashboard in the way.",
     bullets: [
-      "Access counts recorded at redirect time",
+      "Visits counted at the moment of redirect",
       "Last-visit and lifecycle timestamps per link",
-      "Stats available over the same JSON API",
+      "The same stats, available over the API",
     ],
     mockup: StatsMockup,
   },
@@ -176,16 +180,18 @@ export function Capabilities() {
   return (
     <section id="product">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-        <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium text-brand">Product</p>
-          <h2 className="mt-2 text-3xl font-semibold text-balance sm:text-4xl">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
+            Product
+          </p>
+          <h2 className="mt-3 text-3xl font-semibold text-balance sm:text-4xl">
             Everything a link needs. Nothing it doesn&apos;t.
           </h2>
           <p className="mt-4 text-base text-pretty text-muted-foreground">
-            {siteConfig.name} keeps the whole lifecycle of a short link — create,
-            repoint, measure — in one focused workspace.
+            Create a link, change where it points, and see how it performs —
+            the entire lifecycle in one focused workspace.
           </p>
-        </div>
+        </Reveal>
 
         <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
           {capabilities.map((capability, index) => (
@@ -193,11 +199,11 @@ export function Capabilities() {
               key={capability.title}
               className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
             >
-              <div className={cn(index % 2 === 1 && "lg:order-last")}>
-                <p className="text-sm font-medium text-brand">
+              <Reveal className={cn(index % 2 === 1 && "lg:order-last")}>
+                <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
                   {capability.eyebrow}
                 </p>
-                <h3 className="mt-2 text-2xl font-semibold text-balance">
+                <h3 className="mt-3 text-2xl font-semibold text-balance">
                   {capability.title}
                 </h3>
                 <p className="mt-3 text-pretty text-muted-foreground">
@@ -214,8 +220,10 @@ export function Capabilities() {
                     </li>
                   ))}
                 </ul>
-              </div>
-              <capability.mockup />
+              </Reveal>
+              <Reveal delay={120}>
+                <capability.mockup />
+              </Reveal>
             </div>
           ))}
         </div>

@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react"
 
+import { GithubMark } from "@/components/icons"
 import { AuthDialog } from "@/components/landing/auth-dialog"
 import { ProductPreview } from "@/components/landing/product-preview"
 import { Button } from "@/components/ui/button"
@@ -16,28 +17,39 @@ export function Hero() {
 
       <div className="mx-auto max-w-6xl px-4 pt-16 pb-14 sm:px-6 sm:pt-24 sm:pb-20">
         <div className="mx-auto max-w-2xl text-center">
-          <a
-            href={siteConfig.repoUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full border bg-background px-3 py-1 text-xs font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <span className="size-1.5 rounded-full bg-brand" aria-hidden="true" />
-            Built in the open — Go, MongoDB &amp; Next.js
-            <ArrowUpRight className="size-3" aria-hidden="true" />
-          </a>
+          <div className="animate-fade-up">
+            <a
+              href={siteConfig.repoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border bg-background py-1 pr-2.5 pl-3 text-xs font-medium text-muted-foreground transition-colors outline-none hover:border-foreground/20 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <span className="relative flex size-1.5" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-60 [animation-duration:2.5s]" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-brand" />
+              </span>
+              Built in the open
+              <span
+                className="h-3.5 w-px bg-border"
+                aria-hidden="true"
+              />
+              <GithubMark className="size-3.5" />
+              GitHub
+              <ArrowUpRight className="size-3" aria-hidden="true" />
+            </a>
+          </div>
 
-          <h1 className="mt-6 text-4xl font-semibold text-balance sm:text-5xl md:text-6xl">
+          <h1 className="animate-fade-up mt-6 text-4xl font-semibold text-balance [animation-delay:80ms] sm:text-5xl md:text-6xl">
             {siteConfig.tagline}
           </h1>
 
-          <p className="mx-auto mt-5 max-w-xl text-base text-pretty text-muted-foreground sm:text-lg">
-            Create compact links, manage where they lead, and understand every
-            visit — from one focused workspace backed by an API-first Go
-            service.
+          <p className="animate-fade-up mx-auto mt-5 max-w-xl text-base text-pretty text-muted-foreground [animation-delay:160ms] sm:text-lg">
+            Paste a long URL and get a short link you can share anywhere.
+            Change where it points at any time, and see exactly how often
+            it&apos;s opened.
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+          <div className="animate-fade-up mt-8 flex flex-wrap items-center justify-center gap-3 [animation-delay:240ms]">
             <AuthDialog intent="get-started">
               <Button className="h-10 px-5">Get started</Button>
             </AuthDialog>
@@ -47,7 +59,7 @@ export function Hero() {
           </div>
         </div>
 
-        <div className="mt-14 sm:mt-16">
+        <div className="animate-fade-up mt-14 [animation-delay:320ms] sm:mt-16">
           <ProductPreview />
         </div>
       </div>

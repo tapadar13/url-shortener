@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   BarChart2,
+  CheckCircle2,
   Clock,
   Copy,
   CornerDownRight,
@@ -53,17 +54,17 @@ function ShortenBar() {
 
 function FreshResult() {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-md border border-brand/30 bg-brand-muted/60 px-3 py-2.5">
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 rounded-md border border-brand/30 bg-brand-muted/60 px-3 py-2.5">
+      <CheckCircle2 className="size-3.5 text-brand" aria-hidden="true" />
       <span className="font-mono text-xs font-medium text-brand">
         {siteConfig.shortHost}/x7Kd2a
       </span>
       <Copy className="size-3.5 text-muted-foreground" aria-hidden="true" />
-      <ArrowRight
-        className="size-3.5 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-        example.com/spring-launch/announcement…
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-muted-foreground">
+        <span className="shrink-0">redirects to</span>
+        <span className="truncate font-mono text-xs">
+          example.com/spring-launch/announcement…
+        </span>
       </span>
       <span className="text-[11px] text-muted-foreground">
         created just now
@@ -84,7 +85,7 @@ function LinkTable() {
       {sampleLinks.map((link) => (
         <div
           key={link.code}
-          className="grid grid-cols-[1fr_auto] items-center gap-2 border-b px-3 py-2 last:border-b-0 sm:grid-cols-[8rem_1fr_4rem_5rem]"
+          className="grid grid-cols-[1fr_auto] items-center gap-2 border-b px-3 py-2 transition-colors last:border-b-0 hover:bg-muted/40 sm:grid-cols-[8rem_1fr_4rem_5rem]"
         >
           <span className="truncate font-mono text-xs font-medium">
             /{link.code}
@@ -151,18 +152,25 @@ function DetailPanel() {
         </p>
         <div className="mt-2 space-y-1 font-mono text-[11px]">
           <p className="text-muted-foreground">
-            GET&nbsp;<span className="text-foreground">/x7Kd2a</span>
+            someone opens&nbsp;
+            <span className="text-foreground">/x7Kd2a</span>
           </p>
           <p className="flex items-center gap-1 text-muted-foreground">
             <CornerDownRight className="size-3" aria-hidden="true" />
-            302 → destination
+            redirected in one hop
           </p>
-          <p className="text-brand">visits +1 · recorded atomically</p>
+          <p className="text-brand">visit count +1 · recorded instantly</p>
         </div>
       </div>
     </aside>
   )
 }
+
+const legend = [
+  { icon: Link2, label: "Paste a long URL" },
+  { icon: ArrowRight, label: "Get a short link" },
+  { icon: BarChart2, label: "Every visit counted" },
+] as const
 
 export function ProductPreview() {
   return (
@@ -177,8 +185,23 @@ export function ProductPreview() {
           <DetailPanel />
         </div>
       </MockWindow>
-      <figcaption className="mt-3 text-center text-xs text-muted-foreground">
-        Product preview — illustrative data, not a live workspace yet.
+      <figcaption className="mt-4 space-y-2 text-center">
+        <span className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-xs font-medium text-muted-foreground">
+          {legend.map((item, index) => (
+            <span key={item.label} className="flex items-center gap-1.5">
+              <span
+                className="flex size-4 items-center justify-center rounded-full bg-muted font-mono text-[10px] text-muted-foreground"
+                aria-hidden="true"
+              >
+                {index + 1}
+              </span>
+              {item.label}
+            </span>
+          ))}
+        </span>
+        <span className="block text-xs text-muted-foreground/70">
+          Illustrative preview — not a live workspace yet.
+        </span>
       </figcaption>
     </figure>
   )
