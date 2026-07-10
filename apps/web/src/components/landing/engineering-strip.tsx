@@ -1,5 +1,7 @@
 import { Activity, Braces, Database, Hash } from "lucide-react"
 
+import { Reveal } from "@/components/landing/reveal"
+
 const points = [
   {
     icon: Hash,
@@ -27,8 +29,8 @@ export function EngineeringStrip() {
   return (
     <section aria-label="Engineering principles" className="border-y bg-muted/40">
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-x-8 gap-y-6 px-4 py-10 sm:grid-cols-2 sm:px-6 lg:grid-cols-4">
-        {points.map((point) => (
-          <div key={point.title} className="flex gap-3">
+        {points.map((point, index) => (
+          <Reveal key={point.title} delay={index * 80} className="flex gap-3">
             <point.icon
               className="mt-0.5 size-4 shrink-0 text-brand"
               aria-hidden="true"
@@ -39,7 +41,7 @@ export function EngineeringStrip() {
                 {point.body}
               </p>
             </div>
-          </div>
+          </Reveal>
         ))}
       </div>
     </section>

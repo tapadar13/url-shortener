@@ -1,13 +1,14 @@
 import { ArrowUpRight } from "lucide-react"
 
 import { AuthDialog } from "@/components/landing/auth-dialog"
+import { Reveal } from "@/components/landing/reveal"
 import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
 
 export function FinalCta() {
   return (
     <section aria-label="Get started" className="bg-foreground">
-      <div className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-24">
+      <Reveal className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6 sm:py-24">
         <h2 className="mx-auto max-w-2xl text-3xl font-semibold text-balance text-background sm:text-4xl">
           Give your links a proper workspace
         </h2>
@@ -33,7 +34,7 @@ export function FinalCta() {
             </a>
           </Button>
         </div>
-      </div>
+      </Reveal>
     </section>
   )
 }

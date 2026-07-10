@@ -6,7 +6,7 @@ export const siteConfig = {
   name: "Relay",
   tagline: "Short links. Clearer signals.",
   description:
-    "Relay is a focused link-management platform: create compact short links, manage where they lead, and understand every visit from one workspace.",
+    "Relay turns long URLs into short links you can trust. Change where a link points at any time, and see exactly how often it's opened — all from one focused workspace.",
   /** Display-only short domain used in product mockups. */
   shortHost: "rly.to",
   url: "http://localhost:3000",

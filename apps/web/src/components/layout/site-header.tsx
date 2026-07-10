@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Menu } from "lucide-react"
 
+import { AnchorLink } from "@/components/anchor-link"
 import { AuthDialog } from "@/components/landing/auth-dialog"
 import { Brand } from "@/components/layout/brand"
 import { Button } from "@/components/ui/button"
@@ -30,7 +31,7 @@ export function SiteHeader() {
   }, [])
 
   // Native hash navigation is swallowed by the sheet's scroll lock, so close
-  // the menu and scroll programmatically instead.
+  // the menu and scroll programmatically instead. The URL stays clean.
   const handleMobileNav = (
     event: React.MouseEvent<HTMLAnchorElement>,
     href: string
@@ -40,7 +41,6 @@ export function SiteHeader() {
     // Jump instantly: the closing sheet covers the transition, and a smooth
     // scroll would race against its scroll lock.
     document.querySelector(href)?.scrollIntoView({ behavior: "instant" })
-    history.replaceState(null, "", href)
   }
 
   return (
@@ -63,13 +63,13 @@ export function SiteHeader() {
 
         <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
           {siteConfig.nav.map((item) => (
-            <a
+            <AnchorLink
               key={item.href}
               href={item.href}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {item.label}
-            </a>
+            </AnchorLink>
           ))}
         </nav>
 
