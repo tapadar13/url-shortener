@@ -388,6 +388,123 @@ func TestRepositoryDeleteByShortCodeWrapsDeleteError(t *testing.T) {
 	}
 }
 
+func TestRepositoryRecordAccessReturnsURLWithIncrementedCount(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	id := bson.NewObjectID()
+	accessedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	accessedAtUTC := accessedAt.UTC()
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:             id,
+			LongURL:        record.LongURL,
+			ShortCode:      record.ShortCode,
+			AccessCount:    1,
+			CreatedAt:      record.CreatedAt,
+			UpdatedAt:      record.UpdatedAt,
+			LastAccessedAt: &accessedAtUTC,
+		}, nil, nil),
+	}
+	repository := newRepository(collection)
+
+	recorded, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  " " + record.ShortCode + " ",
+		AccessedAt: accessedAt,
+	})
+	if err != nil {
+		t.Fatalf("expected access to be recorded: %v", err)
+	}
+
+	if collection.updateCount != 1 {
+		t.Fatalf("expected one access update, got %d", collection.updateCount)
+	}
+
+	assertShortCodeFilter(t, collection.updateFilter, record.ShortCode)
+	assertAccessUpdate(t, collection.update, accessedAtUTC)
+
+	updateOptions := findOneAndUpdateOptions(t, collection.updateOptions)
+	if updateOptions.ReturnDocument == nil || *updateOptions.ReturnDocument != options.After {
+		t.Fatalf("expected updated document to be returned, got %#v", updateOptions.ReturnDocument)
+	}
+
+	if recorded.ID != id.Hex() || recorded.AccessCount != 1 || recorded.LastAccessedAt == nil || !recorded.LastAccessedAt.Equal(accessedAtUTC) {
+		t.Fatalf("expected recorded access result, got %#v", recorded)
+	}
+}
+
+func TestRepositoryRecordAccessMapsMissingURL(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, mongo.ErrNoDocuments, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "AbC123",
+		AccessedAt: time.Now(),
+	})
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryRecordAccessValidatesParametersBeforeUpdating(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "invalid-code",
+		AccessedAt: time.Now(),
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.updateCount != 0 {
+		t.Fatalf("expected no access update, got %d", collection.updateCount)
+	}
+}
+
+func TestRepositoryRecordAccessRequiresTimestamp(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode: "AbC123",
+	})
+	if !errors.Is(err, urlmodel.ErrTimestampRequired) {
+		t.Fatalf("expected timestamp error, got %v", err)
+	}
+
+	if collection.updateCount != 0 {
+		t.Fatalf("expected no access update, got %d", collection.updateCount)
+	}
+}
+
+func TestRepositoryRecordAccessWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("update failed")
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, expectedErr, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "AbC123",
+		AccessedAt: time.Now(),
+	})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected access update error, got %v", err)
+	}
+}
+
 func assertShortCodeFilter(t *testing.T, value any, shortCode string) {
 	t.Helper()
 
@@ -420,6 +537,29 @@ func assertURLUpdate(t *testing.T, value any, longURL string, updatedAt time.Tim
 
 	if len(fields) != 2 || fields[0].Key != "url" || fields[0].Value != longURL || fields[1].Key != "updated_at" || fields[1].Value != updatedAt {
 		t.Fatalf("expected URL and updated timestamp fields, got %#v", fields)
+	}
+}
+
+func assertAccessUpdate(t *testing.T, value any, accessedAt time.Time) {
+	t.Helper()
+
+	update, ok := value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON update, got %T", value)
+	}
+
+	if len(update) != 2 || update[0].Key != "$inc" || update[1].Key != "$set" {
+		t.Fatalf("expected $inc and $set update, got %#v", update)
+	}
+
+	increment, ok := update[0].Value.(bson.D)
+	if !ok || len(increment) != 1 || increment[0].Key != "access_count" || increment[0].Value != 1 {
+		t.Fatalf("expected access count increment, got %#v", update[0].Value)
+	}
+
+	fields, ok := update[1].Value.(bson.D)
+	if !ok || len(fields) != 1 || fields[0].Key != "last_accessed_at" || fields[0].Value != accessedAt {
+		t.Fatalf("expected access timestamp update, got %#v", update[1].Value)
 	}
 }
 
