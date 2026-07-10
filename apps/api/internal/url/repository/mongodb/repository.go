@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -15,8 +16,17 @@ type insertOneCollection interface {
 	InsertOne(ctx context.Context, document any, opts ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error)
 }
 
+type findOneCollection interface {
+	FindOne(ctx context.Context, filter any, opts ...options.Lister[options.FindOneOptions]) *mongo.SingleResult
+}
+
+type collection interface {
+	insertOneCollection
+	findOneCollection
+}
+
 type Repository struct {
-	collection insertOneCollection
+	collection collection
 }
 
 func New(collection *mongo.Collection) *Repository {
@@ -27,7 +37,7 @@ func New(collection *mongo.Collection) *Repository {
 	return newRepository(collection)
 }
 
-func newRepository(collection insertOneCollection) *Repository {
+func newRepository(collection collection) *Repository {
 	return &Repository{
 		collection: collection,
 	}
@@ -73,4 +83,34 @@ func (r *Repository) Create(ctx context.Context, record urlmodel.URL) (urlmodel.
 	}
 
 	return created, nil
+}
+
+func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error) {
+	if r == nil || r.collection == nil {
+		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
+	}
+
+	normalizedShortCode, err := shortcode.Normalize(shortCode)
+	if err != nil {
+		return urlmodel.URL{}, err
+	}
+
+	result := r.collection.FindOne(ctx, bson.D{{Key: "short_code", Value: normalizedShortCode}})
+	if result == nil {
+		return urlmodel.URL{}, errors.New("find URL by short code: missing result")
+	}
+
+	var doc urlDocument
+	if err := result.Decode(&doc); errors.Is(err, mongo.ErrNoDocuments) {
+		return urlmodel.URL{}, fmt.Errorf("%w: %w", urlmodel.ErrNotFound, err)
+	} else if err != nil {
+		return urlmodel.URL{}, fmt.Errorf("find URL by short code: %w", err)
+	}
+
+	record, err := doc.toDomain()
+	if err != nil {
+		return urlmodel.URL{}, err
+	}
+
+	return record, nil
 }
