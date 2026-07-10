@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react"
 
+import { AnchorLink } from "@/components/anchor-link"
 import { Brand } from "@/components/layout/brand"
 import { siteConfig } from "@/config/site"
 
@@ -22,12 +23,12 @@ export function SiteFooter() {
               <ul className="mt-3 space-y-2">
                 {siteConfig.nav.map((item) => (
                   <li key={item.href}>
-                    <a
+                    <AnchorLink
                       href={item.href}
                       className="rounded-sm text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
                     >
                       {item.label}
-                    </a>
+                    </AnchorLink>
                   </li>
                 ))}
               </ul>

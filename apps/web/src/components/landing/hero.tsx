@@ -1,5 +1,6 @@
 import { ArrowUpRight } from "lucide-react"
 
+import { AnchorLink } from "@/components/anchor-link"
 import { GithubMark } from "@/components/icons"
 import { AuthDialog } from "@/components/landing/auth-dialog"
 import { ProductPreview } from "@/components/landing/product-preview"
@@ -54,7 +55,7 @@ export function Hero() {
               <Button className="h-10 px-5">Get started</Button>
             </AuthDialog>
             <Button variant="outline" className="h-10 px-5" asChild>
-              <a href="#product">Explore the platform</a>
+              <AnchorLink href="#product">Explore the platform</AnchorLink>
             </Button>
           </div>
         </div>
