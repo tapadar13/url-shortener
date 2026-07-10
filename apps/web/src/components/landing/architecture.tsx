@@ -7,6 +7,7 @@ import {
   TimerReset,
 } from "lucide-react"
 
+import { Reveal } from "@/components/landing/reveal"
 import { siteConfig } from "@/config/site"
 
 const practices = [
@@ -56,9 +57,11 @@ export function Architecture() {
     <section id="architecture">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
-          <div>
-            <p className="text-sm font-medium text-brand">Architecture</p>
-            <h2 className="mt-2 text-3xl font-semibold text-balance sm:text-4xl">
+          <Reveal>
+            <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
+              Architecture
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold text-balance sm:text-4xl">
               A small service, engineered like a big one
             </h2>
             <p className="mt-4 text-pretty text-muted-foreground">
@@ -81,9 +84,9 @@ export function Architecture() {
                 </div>
               ))}
             </dl>
-          </div>
+          </Reveal>
 
-          <div className="lg:pt-10">
+          <Reveal delay={120} className="lg:pt-10">
             <div className="rounded-lg border bg-muted/40 p-5 sm:p-6">
               <p className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
                 <Database className="size-3.5" aria-hidden="true" />
@@ -120,7 +123,7 @@ export function Architecture() {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>

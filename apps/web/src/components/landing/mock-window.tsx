@@ -14,7 +14,7 @@ export function MockWindow({ url, children, className }: MockWindowProps) {
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-lg border bg-background shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)]",
+        "overflow-hidden rounded-lg border bg-background shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_36px_-10px_rgb(0_0_0/0.12)] transition-shadow duration-300 hover:shadow-[0_1px_2px_rgb(0_0_0/0.04),0_18px_44px_-10px_rgb(0_0_0/0.16)]",
         className
       )}
     >
