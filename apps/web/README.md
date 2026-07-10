@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Web
 
-## Getting Started
+The Next.js frontend for the URL shortener. This phase ships the public
+landing page; authentication, API integration, and link management follow
+once the Go API contract is stable.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router, React Server Components)
+- TypeScript (strict)
+- Tailwind CSS
+- shadcn/ui + Lucide icons
+- TanStack Query (provider wired, no requests yet)
+
+## Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command         | Purpose                  |
+| --------------- | ------------------------ |
+| `npm run dev`   | Start the dev server     |
+| `npm run lint`  | Run ESLint               |
+| `npm run build` | Production build         |
+| `npm run start` | Serve a production build |
 
-## Learn More
+## Structure
 
-To learn more about Next.js, take a look at the following resources:
+```text
+src/
+  app/(marketing)/   Landing page route
+  components/
+    landing/         Landing page sections and product mockups
+    layout/          Header, footer, brand
+    ui/              shadcn/ui primitives
+  config/site.ts     Brand name, navigation, repository URL
+  providers/         TanStack Query provider
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The working product name lives in `src/config/site.ts` and is referenced
+everywhere else, so renaming the product is a one-file change.
