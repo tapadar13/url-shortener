@@ -9,7 +9,6 @@ import { Brand } from "@/components/layout/brand"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
-  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -21,6 +20,7 @@ import { cn } from "@/lib/utils"
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
@@ -28,6 +28,20 @@ export function SiteHeader() {
     window.addEventListener("scroll", onScroll, { passive: true })
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
+
+  // Native hash navigation is swallowed by the sheet's scroll lock, so close
+  // the menu and scroll programmatically instead.
+  const handleMobileNav = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    event.preventDefault()
+    setMenuOpen(false)
+    // Jump instantly: the closing sheet covers the transition, and a smooth
+    // scroll would race against its scroll lock.
+    document.querySelector(href)?.scrollIntoView({ behavior: "instant" })
+    history.replaceState(null, "", href)
+  }
 
   return (
     <header
@@ -68,7 +82,7 @@ export function SiteHeader() {
           </AuthDialog>
         </div>
 
-        <Sheet>
+        <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
           <SheetTrigger asChild>
             <Button
               variant="ghost"
@@ -93,14 +107,14 @@ export function SiteHeader() {
               className="flex flex-col gap-1 px-4"
             >
               {siteConfig.nav.map((item) => (
-                <SheetClose asChild key={item.href}>
-                  <a
-                    href={item.href}
-                    className="rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-                  >
-                    {item.label}
-                  </a>
-                </SheetClose>
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={(event) => handleMobileNav(event, item.href)}
+                  className="rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                >
+                  {item.label}
+                </a>
               ))}
             </nav>
             <div className="mt-auto flex flex-col gap-2 p-4">

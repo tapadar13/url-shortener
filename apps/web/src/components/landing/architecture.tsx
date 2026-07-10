@@ -53,7 +53,7 @@ const flow = [
 
 export function Architecture() {
   return (
-    <section id="architecture" className="scroll-mt-14">
+    <section id="architecture">
       <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
           <div>
@@ -62,9 +62,7 @@ export function Architecture() {
               A small service, engineered like a big one
             </h2>
             <p className="mt-4 text-pretty text-muted-foreground">
-              {siteConfig.name} is a Go service in front of MongoDB — no
-              framework magic, no hidden layers. The parts you&apos;d audit
-              first are the parts that got the most attention.
+              {`${siteConfig.name} is a Go service in front of MongoDB — no framework magic, no hidden layers. The parts you'd audit first are the parts that got the most attention.`}
             </p>
 
             <dl className="mt-8 space-y-6">
