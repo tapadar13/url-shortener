@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -301,6 +302,58 @@ func TestRouterMapsUnexpectedUpdateErrorToInternalServerError(t *testing.T) {
 	assertAPIError(t, response, "internal_error")
 }
 
+func TestRouterDeletesShortURL(t *testing.T) {
+	t.Parallel()
+
+	deleter := &fakeURLDeleter{}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLDeleter: deleter}), http.MethodDelete, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusNoContent)
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("expected delete response body to be readable: %v", err)
+	}
+
+	if len(body) != 0 {
+		t.Fatalf("expected empty delete response, got %q", body)
+	}
+
+	if deleter.shortCode != "AbC123" {
+		t.Fatalf("expected short code AbC123, got %q", deleter.shortCode)
+	}
+}
+
+func TestRouterMapsInvalidDeleteShortCodeToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	deleter := &fakeURLDeleter{err: shortcode.ErrInvalidChars}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLDeleter: deleter}), http.MethodDelete, "/shorten/invalid-code", "")
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_short_code")
+}
+
+func TestRouterMapsMissingDeleteURLToNotFound(t *testing.T) {
+	t.Parallel()
+
+	deleter := &fakeURLDeleter{err: urlmodel.ErrNotFound}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLDeleter: deleter}), http.MethodDelete, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsUnexpectedDeleteErrorToInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	deleter := &fakeURLDeleter{err: errors.New("database unavailable")}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLDeleter: deleter}), http.MethodDelete, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertAPIError(t, response, "internal_error")
+}
+
 func executeRequestWithBody(t *testing.T, router http.Handler, method string, path string, body string) *http.Response {
 	t.Helper()
 
@@ -390,4 +443,15 @@ func (u *fakeURLUpdater) UpdateLongURL(_ context.Context, params service.UpdateP
 	}
 
 	return u.updated, nil
+}
+
+type fakeURLDeleter struct {
+	err       error
+	shortCode string
+}
+
+func (d *fakeURLDeleter) DeleteByShortCode(_ context.Context, shortCode string) error {
+	d.shortCode = shortCode
+
+	return d.err
 }
