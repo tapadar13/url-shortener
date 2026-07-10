@@ -225,7 +225,7 @@ func TestDefaultGeneratorProducesValidGenerator(t *testing.T) {
 	}
 }
 
-func newTestService(t *testing.T, repository urlmodel.Repository, generator ShortCodeGenerator, options Options) *Service {
+func newTestService(t *testing.T, repository CreateRepository, generator ShortCodeGenerator, options Options) *Service {
 	t.Helper()
 
 	service, err := New(repository, generator, options)
@@ -280,20 +280,4 @@ func (r *fakeRepository) Create(_ context.Context, record urlmodel.URL) (urlmode
 
 	record.ID = "507f1f77bcf86cd799439011"
 	return record, nil
-}
-
-func (r *fakeRepository) FindByShortCode(context.Context, string) (urlmodel.URL, error) {
-	return urlmodel.URL{}, errors.New("not implemented")
-}
-
-func (r *fakeRepository) UpdateLongURL(context.Context, urlmodel.UpdateLongURLParams) (urlmodel.URL, error) {
-	return urlmodel.URL{}, errors.New("not implemented")
-}
-
-func (r *fakeRepository) DeleteByShortCode(context.Context, string) error {
-	return errors.New("not implemented")
-}
-
-func (r *fakeRepository) RecordAccess(context.Context, urlmodel.RecordAccessParams) (urlmodel.URL, error) {
-	return urlmodel.URL{}, errors.New("not implemented")
 }
