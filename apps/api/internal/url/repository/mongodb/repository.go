@@ -198,3 +198,46 @@ func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) er
 
 	return nil
 }
+
+func (r *Repository) RecordAccess(ctx context.Context, params urlmodel.RecordAccessParams) (urlmodel.URL, error) {
+	if r == nil || r.collection == nil {
+		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
+	}
+
+	normalizedShortCode, err := shortcode.Normalize(params.ShortCode)
+	if err != nil {
+		return urlmodel.URL{}, err
+	}
+
+	if params.AccessedAt.IsZero() {
+		return urlmodel.URL{}, urlmodel.ErrTimestampRequired
+	}
+
+	accessedAt := params.AccessedAt.UTC()
+	result := r.collection.FindOneAndUpdate(
+		ctx,
+		bson.D{{Key: "short_code", Value: normalizedShortCode}},
+		bson.D{
+			{Key: "$inc", Value: bson.D{{Key: "access_count", Value: 1}}},
+			{Key: "$set", Value: bson.D{{Key: "last_accessed_at", Value: accessedAt}}},
+		},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	)
+	if result == nil {
+		return urlmodel.URL{}, errors.New("record URL access: missing result")
+	}
+
+	var doc urlDocument
+	if err := result.Decode(&doc); errors.Is(err, mongo.ErrNoDocuments) {
+		return urlmodel.URL{}, fmt.Errorf("%w: %w", urlmodel.ErrNotFound, err)
+	} else if err != nil {
+		return urlmodel.URL{}, fmt.Errorf("record URL access: %w", err)
+	}
+
+	recorded, err := doc.toDomain()
+	if err != nil {
+		return urlmodel.URL{}, err
+	}
+
+	return recorded, nil
+}
