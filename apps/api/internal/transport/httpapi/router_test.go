@@ -215,6 +215,56 @@ func TestRouterMapsUnexpectedLookupErrorToInternalServerError(t *testing.T) {
 	assertAPIError(t, response, "internal_error")
 }
 
+func TestRouterGetsShortURLStats(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 7, 9, 9, 0, 0, 0, time.UTC)
+	lastAccessedAt := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	finder := &fakeURLFinder{
+		found: urlmodel.URL{
+			ID:             "507f1f77bcf86cd799439011",
+			LongURL:        "https://example.com/articles/123",
+			ShortCode:      "AbC123",
+			AccessCount:    42,
+			CreatedAt:      createdAt,
+			UpdatedAt:      lastAccessedAt,
+			LastAccessedAt: &lastAccessedAt,
+		},
+	}
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123/stats", "")
+
+	assertStatus(t, response, http.StatusOK)
+	assertJSONContentType(t, response)
+
+	var body urlStatsResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("expected JSON response: %v", err)
+	}
+
+	if body.ID != finder.found.ID || body.URL != finder.found.LongURL || body.ShortCode != finder.found.ShortCode || body.AccessCount != 42 {
+		t.Fatalf("expected URL stats response, got %#v", body)
+	}
+
+	if body.LastAccessedAt == nil || !body.LastAccessedAt.Equal(lastAccessedAt) {
+		t.Fatalf("expected last accessed timestamp %s, got %v", lastAccessedAt, body.LastAccessedAt)
+	}
+
+	if finder.shortCode != "AbC123" {
+		t.Fatalf("expected short code AbC123, got %q", finder.shortCode)
+	}
+}
+
+func TestRouterMapsMissingStatsURLToNotFound(t *testing.T) {
+	t.Parallel()
+
+	finder := &fakeURLFinder{err: urlmodel.ErrNotFound}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123/stats", "")
+
+	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
 func TestRouterUpdatesShortURL(t *testing.T) {
 	t.Parallel()
 
