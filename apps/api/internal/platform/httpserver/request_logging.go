@@ -26,6 +26,7 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			}
 
 			logger.InfoContext(r.Context(), "http request completed",
+				slog.String("request_id", RequestIDFromContext(r.Context())),
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.Path),
 				slog.Int("status", statusCode),
