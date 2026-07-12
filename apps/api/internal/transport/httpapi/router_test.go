@@ -176,6 +176,29 @@ func TestRouterCreatesExpiringShortURL(t *testing.T) {
 	}
 }
 
+func TestRouterCreatesShortURLWithCustomCode(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	creator := &fakeURLCreator{
+		created: urlmodel.URL{
+			ID:        "507f1f77bcf86cd799439011",
+			LongURL:   "https://example.com/articles/123",
+			ShortCode: "Custom123",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+	}
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com/articles/123","shortCode":"Custom123"}`)
+
+	assertStatus(t, response, http.StatusCreated)
+
+	if len(creator.params) != 1 || creator.params[0].ShortCode == nil || *creator.params[0].ShortCode != "Custom123" {
+		t.Fatalf("expected custom short code to be passed to service, got %#v", creator.params)
+	}
+}
+
 func TestRouterRejectsInvalidCreateURLRequest(t *testing.T) {
 	t.Parallel()
 
@@ -208,6 +231,26 @@ func TestRouterMapsInvalidExpirationToBadRequest(t *testing.T) {
 
 	assertStatus(t, response, http.StatusBadRequest)
 	assertAPIError(t, response, "invalid_expiration")
+}
+
+func TestRouterMapsInvalidCustomShortCodeToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	creator := &fakeURLCreator{err: shortcode.ErrInvalidChars}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com","shortCode":"invalid-code"}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_short_code")
+}
+
+func TestRouterMapsCustomShortCodeCollisionToConflict(t *testing.T) {
+	t.Parallel()
+
+	creator := &fakeURLCreator{err: urlmodel.ErrDuplicateShortCode}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com","shortCode":"Custom123"}`)
+
+	assertStatus(t, response, http.StatusConflict)
+	assertAPIError(t, response, "short_code_taken")
 }
 
 func TestRouterMapsShortCodeRetryExhaustionToServiceUnavailable(t *testing.T) {
