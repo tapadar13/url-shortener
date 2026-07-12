@@ -404,6 +404,83 @@ func TestRouterMapsUnexpectedDeleteErrorToInternalServerError(t *testing.T) {
 	assertAPIError(t, response, "internal_error")
 }
 
+func TestRouterRedirectsShortURL(t *testing.T) {
+	t.Parallel()
+
+	redirector := &fakeURLRedirector{
+		resolved: urlmodel.URL{
+			LongURL:   "https://example.com/articles/123",
+			ShortCode: "AbC123",
+		},
+	}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{
+		URLRedirector:      redirector,
+		RedirectStatusCode: http.StatusPermanentRedirect,
+	}), http.MethodGet, "/AbC123", "")
+
+	assertStatus(t, response, http.StatusPermanentRedirect)
+
+	if response.Header.Get("Location") != redirector.resolved.LongURL {
+		t.Fatalf("expected redirect location %q, got %q", redirector.resolved.LongURL, response.Header.Get("Location"))
+	}
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("expected redirect response body to be readable: %v", err)
+	}
+
+	if len(body) != 0 {
+		t.Fatalf("expected empty redirect response, got %q", body)
+	}
+
+	if redirector.shortCode != "AbC123" {
+		t.Fatalf("expected short code AbC123, got %q", redirector.shortCode)
+	}
+}
+
+func TestRouterRedirectRouteDoesNotShadowHealthCheck(t *testing.T) {
+	t.Parallel()
+
+	redirector := &fakeURLRedirector{}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLRedirector: redirector}), http.MethodGet, "/healthz", "")
+
+	assertStatus(t, response, http.StatusOK)
+
+	if redirector.called {
+		t.Fatal("expected health check not to invoke redirect service")
+	}
+}
+
+func TestRouterMapsInvalidRedirectShortCodeToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	redirector := &fakeURLRedirector{err: shortcode.ErrInvalidChars}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLRedirector: redirector}), http.MethodGet, "/invalid-code", "")
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_short_code")
+}
+
+func TestRouterMapsMissingRedirectURLToNotFound(t *testing.T) {
+	t.Parallel()
+
+	redirector := &fakeURLRedirector{err: urlmodel.ErrNotFound}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLRedirector: redirector}), http.MethodGet, "/AbC123", "")
+
+	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsUnexpectedRedirectErrorToInternalServerError(t *testing.T) {
+	t.Parallel()
+
+	redirector := &fakeURLRedirector{err: errors.New("database unavailable")}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLRedirector: redirector}), http.MethodGet, "/AbC123", "")
+
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertAPIError(t, response, "internal_error")
+}
+
 func executeRequestWithBody(t *testing.T, router http.Handler, method string, path string, body string) *http.Response {
 	t.Helper()
 
@@ -504,4 +581,22 @@ func (d *fakeURLDeleter) DeleteByShortCode(_ context.Context, shortCode string) 
 	d.shortCode = shortCode
 
 	return d.err
+}
+
+type fakeURLRedirector struct {
+	resolved  urlmodel.URL
+	err       error
+	shortCode string
+	called    bool
+}
+
+func (r *fakeURLRedirector) Resolve(_ context.Context, shortCode string) (urlmodel.URL, error) {
+	r.called = true
+	r.shortCode = shortCode
+
+	if r.err != nil {
+		return urlmodel.URL{}, r.err
+	}
+
+	return r.resolved, nil
 }
