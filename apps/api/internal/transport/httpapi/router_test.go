@@ -52,6 +52,30 @@ func TestRouterHandlesReadinessCheck(t *testing.T) {
 	}
 }
 
+func TestRouterChecksDependencyReadiness(t *testing.T) {
+	t.Parallel()
+
+	checker := &fakeReadinessChecker{}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{ReadinessChecker: checker}), http.MethodGet, "/readyz", "")
+
+	assertStatus(t, response, http.StatusOK)
+	assertJSONContentType(t, response)
+
+	if !checker.called {
+		t.Fatal("expected readiness checker to be called")
+	}
+}
+
+func TestRouterReturnsServiceUnavailableWhenDependencyIsNotReady(t *testing.T) {
+	t.Parallel()
+
+	checker := &fakeReadinessChecker{err: errors.New("MongoDB unavailable")}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{ReadinessChecker: checker}), http.MethodGet, "/readyz", "")
+
+	assertStatus(t, response, http.StatusServiceUnavailable)
+	assertAPIError(t, response, "not_ready")
+}
+
 func TestRouterReturnsNotFoundForUnknownRoute(t *testing.T) {
 	t.Parallel()
 
@@ -536,6 +560,16 @@ type fakeURLCreator struct {
 	created urlmodel.URL
 	err     error
 	params  []service.CreateParams
+}
+
+type fakeReadinessChecker struct {
+	err    error
+	called bool
+}
+
+func (c *fakeReadinessChecker) Ping(context.Context) error {
+	c.called = true
+	return c.err
 }
 
 func (c *fakeURLCreator) Create(_ context.Context, params service.CreateParams) (urlmodel.URL, error) {

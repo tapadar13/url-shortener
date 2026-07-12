@@ -52,6 +52,20 @@ func TestDisconnectHandlesNilClient(t *testing.T) {
 	}
 }
 
+func TestPingRejectsNilClient(t *testing.T) {
+	t.Parallel()
+
+	var client *Client
+	err := client.Ping(context.Background())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+
+	if !strings.Contains(err.Error(), "client") {
+		t.Fatalf("expected client error, got %q", err.Error())
+	}
+}
+
 func TestNilClientAccessorsReturnNil(t *testing.T) {
 	t.Parallel()
 
