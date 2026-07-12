@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  title: URL Shortener API
+  version: 0.1.0
+  description: |
+    Create and manage short URLs, retrieve link statistics, and redirect visitors
+    while atomically recording accesses.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+security: []
+paths:
+  /healthz:
+    get:
+      summary: Check API liveness
+      operationId: getHealth
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+  /readyz:
+    get:
+      summary: Check API and MongoDB readiness
+      operationId: getReadiness
+      responses:
+        '200':
+          $ref: '#/components/responses/Ready'
+        '503':
+          $ref: '#/components/responses/NotReady'
+  /shorten:
+    post:
+      summary: Create a short URL
+      operationId: createShortURL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/URLRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/URLCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ShortCodeUnavailable'
+  /shorten/{shortCode}:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve a short URL
+      operationId: getShortURL
+      responses:
+        '200':
+          $ref: '#/components/responses/URLResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      summary: Update a short URL destination
+      operationId: updateShortURL
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/URLRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/URLResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      summary: Delete a short URL
+      operationId: deleteShortURL
+      responses:
+        '204':
+          description: Short URL deleted
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /shorten/{shortCode}/stats:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve short URL statistics
+      operationId: getShortURLStats
+      responses:
+        '200':
+          $ref: '#/components/responses/URLStatsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /{shortCode}:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Redirect to the original destination
+      description: Increments the access count atomically before returning the redirect.
+      operationId: redirectShortURL
+      responses:
+        '301':
+          $ref: '#/components/responses/Redirect'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '307':
+          $ref: '#/components/responses/Redirect'
+        '308':
+          $ref: '#/components/responses/Redirect'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    ShortCode:
+      name: shortCode
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 4
+        maxLength: 32
+        pattern: '^[A-Za-z0-9]+$'
+      description: Base62 short code. Reserved route names are rejected.
+  headers:
+    RequestID:
+      description: Server-generated identifier used to correlate a request with server logs.
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{32}$'
+  responses:
+    Health:
+      description: API process is running.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Probe'
+          example:
+            status: ok
+    Ready:
+      description: API and MongoDB are ready.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Probe'
+          example:
+            status: ready
+    URLCreated:
+      description: Short URL created.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URL'
+    URLResponse:
+      description: Short URL details.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URL'
+    URLStatsResponse:
+      description: Short URL details and access statistics.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URLStats'
+    Redirect:
+      description: Redirect to the original URL. The returned status is selected by server configuration.
+      headers:
+        Location:
+          description: Original destination URL.
+          required: true
+          schema:
+            type: string
+            format: uri
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+    BadRequest:
+      description: Invalid request JSON, URL, or short code.
+      $ref: '#/components/responses/ErrorResponse'
+    NotFound:
+      description: Requested short URL or route was not found.
+      $ref: '#/components/responses/ErrorResponse'
+    NotReady:
+      description: A required service dependency is unavailable.
+      $ref: '#/components/responses/ErrorResponse'
+    ShortCodeUnavailable:
+      description: The service could not generate a unique short code within the configured retry limit.
+      $ref: '#/components/responses/ErrorResponse'
+    InternalError:
+      description: Unexpected server failure.
+      $ref: '#/components/responses/ErrorResponse'
+    ErrorResponse:
+      description: API error response.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    URLRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: HTTP or HTTPS destination URL.
+    URL:
+      type: object
+      required:
+        - id
+        - url
+        - shortCode
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectID in hexadecimal form.
+        url:
+          type: string
+          format: uri
+        shortCode:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    URLStats:
+      allOf:
+        - $ref: '#/components/schemas/URL'
+        - type: object
+          required:
+            - accessCount
+          properties:
+            accessCount:
+              type: integer
+              format: int64
+              minimum: 0
+            lastAccessedAt:
+              type: string
+              format: date-time
+    Probe:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
