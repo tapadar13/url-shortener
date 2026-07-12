@@ -96,14 +96,14 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL redirect service: %w", err)
 	}
 
-	handler := httpserver.RequestID(httpserver.RequestLogger(logger)(httpapi.NewRouter(httpapi.Dependencies{
+	handler := httpserver.RequestID(httpserver.RequestLogger(logger)(httpapi.Recovery(logger)(httpapi.NewRouter(httpapi.Dependencies{
 		URLCreator:         urlCreator,
 		URLFinder:          urlFinder,
 		URLUpdater:         urlUpdater,
 		URLDeleter:         urlDeleter,
 		URLRedirector:      urlRedirector,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
-	})))
+	}))))
 
 	server := httpserver.New(cfg, handler)
 
