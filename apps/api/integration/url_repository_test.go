@@ -158,6 +158,40 @@ func TestURLRepositoryTreatsExpiredURLAsNotFound(t *testing.T) {
 	}
 }
 
+func TestURLRepositoryRejectsDuplicateShortCode(t *testing.T) {
+	repository, _ := newIntegrationURLRepository(t)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
+	defer cancel()
+
+	now := time.Now().UTC()
+	shortCode := fmt.Sprintf("Custom%d", now.UnixNano())
+	first, err := urlmodel.New(urlmodel.NewParams{
+		LongURL:   "https://example.com/first",
+		ShortCode: shortCode,
+		Now:       now,
+	})
+	if err != nil {
+		t.Fatalf("create first domain URL: %v", err)
+	}
+
+	second, err := urlmodel.New(urlmodel.NewParams{
+		LongURL:   "https://example.com/second",
+		ShortCode: shortCode,
+		Now:       now,
+	})
+	if err != nil {
+		t.Fatalf("create second domain URL: %v", err)
+	}
+
+	if _, err := repository.Create(ctx, first); err != nil {
+		t.Fatalf("create first URL: %v", err)
+	}
+
+	if _, err := repository.Create(ctx, second); !errors.Is(err, urlmodel.ErrDuplicateShortCode) {
+		t.Fatalf("expected duplicate short code error, got %v", err)
+	}
+}
+
 func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mongo.Collection) {
 	t.Helper()
 
