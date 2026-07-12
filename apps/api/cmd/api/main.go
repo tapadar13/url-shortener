@@ -96,7 +96,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL redirect service: %w", err)
 	}
 
-	handler := httpserver.RequestID(httpserver.RequestLogger(logger)(httpapi.Recovery(logger)(httpserver.SecurityHeaders(httpserver.CORS(cfg.HTTP.AllowedOrigins)(httpapi.NewRouter(httpapi.Dependencies{
+	handler := httpapi.NewRouter(httpapi.Dependencies{
 		ReadinessChecker:   mongoClient,
 		URLCreator:         urlCreator,
 		URLFinder:          urlFinder,
@@ -104,7 +104,13 @@ func run(ctx context.Context) error {
 		URLDeleter:         urlDeleter,
 		URLRedirector:      urlRedirector,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
-	}))))))
+	})
+	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
+	handler = httpserver.SecurityHeaders(handler)
+	handler = httpserver.Timeout(cfg.RequestTimeout)(handler)
+	handler = httpapi.Recovery(logger)(handler)
+	handler = httpserver.RequestLogger(logger)(handler)
+	handler = httpserver.RequestID(handler)
 
 	server := httpserver.New(cfg, handler)
 

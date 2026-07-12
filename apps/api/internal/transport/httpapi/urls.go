@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -174,6 +175,8 @@ func decodeURLRequest(w http.ResponseWriter, r *http.Request, request *urlReques
 
 func writeCreateURLError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(w, http.StatusGatewayTimeout, "request_timeout", "request timed out")
 	case isLongURLError(err):
 		writeError(w, http.StatusBadRequest, "invalid_url", "url must be a valid http or https URL")
 	case errors.Is(err, service.ErrShortCodeRetriesExhausted):
@@ -185,6 +188,8 @@ func writeCreateURLError(w http.ResponseWriter, err error) {
 
 func writeShortCodeURLError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(w, http.StatusGatewayTimeout, "request_timeout", "request timed out")
 	case isShortCodeError(err):
 		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
 	case errors.Is(err, urlmodel.ErrNotFound):
@@ -196,6 +201,8 @@ func writeShortCodeURLError(w http.ResponseWriter, err error) {
 
 func writeUpdateURLError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		writeError(w, http.StatusGatewayTimeout, "request_timeout", "request timed out")
 	case isShortCodeError(err):
 		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
 	case isLongURLError(err):
