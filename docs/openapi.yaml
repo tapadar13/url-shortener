@@ -41,6 +41,8 @@ paths:
           $ref: '#/components/responses/URLCreated'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/ShortCodeTaken'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
@@ -233,6 +235,9 @@ components:
     ShortCodeUnavailable:
       description: The service could not generate a unique short code within the configured retry limit.
       $ref: '#/components/responses/ErrorResponse'
+    ShortCodeTaken:
+      description: The requested custom short code already exists.
+      $ref: '#/components/responses/ErrorResponse'
     RequestTimeout:
       description: A downstream operation exceeded the configured request deadline.
       $ref: '#/components/responses/ErrorResponse'
@@ -264,6 +269,12 @@ components:
           type: string
           format: date-time
           description: Optional future RFC3339 timestamp after which the link is unavailable.
+        shortCode:
+          type: string
+          minLength: 4
+          maxLength: 32
+          pattern: '^[A-Za-z0-9]+$'
+          description: Optional custom Base62 short code. Reserved route names are rejected.
     UpdateURLRequest:
       type: object
       additionalProperties: false

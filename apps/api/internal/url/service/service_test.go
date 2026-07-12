@@ -110,6 +110,82 @@ func TestServiceCreateCreatesExpiringURL(t *testing.T) {
 	}
 }
 
+func TestServiceCreateUsesCustomShortCode(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := " Custom123 "
+	generator := &fakeGenerator{}
+	service := newTestService(t, &fakeRepository{}, generator, Options{
+		MaxRetries: -1,
+		Now:        fixedTime,
+	})
+
+	created, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if err != nil {
+		t.Fatalf("expected URL to be created: %v", err)
+	}
+
+	if created.ShortCode != "Custom123" {
+		t.Fatalf("expected custom short code, got %q", created.ShortCode)
+	}
+
+	if generator.index != 0 {
+		t.Fatalf("expected generator not to be called, got %d calls", generator.index)
+	}
+}
+
+func TestServiceCreateReturnsCustomShortCodeCollision(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := "Custom123"
+	repository := &fakeRepository{errors: []error{urlmodel.ErrDuplicateShortCode}}
+	generator := &fakeGenerator{}
+	service := newTestService(t, repository, generator, Options{
+		Now: fixedTime,
+	})
+
+	_, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if !errors.Is(err, urlmodel.ErrDuplicateShortCode) {
+		t.Fatalf("expected duplicate short code error, got %v", err)
+	}
+
+	if repository.createCount != 1 {
+		t.Fatalf("expected one create call, got %d", repository.createCount)
+	}
+
+	if generator.index != 0 {
+		t.Fatalf("expected generator not to be called, got %d calls", generator.index)
+	}
+}
+
+func TestServiceCreateValidatesCustomShortCode(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := "invalid-code"
+	repository := &fakeRepository{}
+	service := newTestService(t, repository, &fakeGenerator{}, Options{
+		Now: fixedTime,
+	})
+
+	_, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if !errors.Is(err, shortcode.ErrInvalidChars) {
+		t.Fatalf("expected short code validation error, got %v", err)
+	}
+
+	if repository.createCount != 0 {
+		t.Fatalf("expected no create calls, got %d", repository.createCount)
+	}
+}
+
 func TestServiceCreateRejectsNonFutureExpiration(t *testing.T) {
 	t.Parallel()
 
