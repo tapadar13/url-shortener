@@ -96,7 +96,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL redirect service: %w", err)
 	}
 
-	server := httpserver.New(cfg, httpapi.NewRouter(httpapi.Dependencies{
+	handler := httpserver.RequestLogger(logger)(httpapi.NewRouter(httpapi.Dependencies{
 		URLCreator:         urlCreator,
 		URLFinder:          urlFinder,
 		URLUpdater:         urlUpdater,
@@ -104,6 +104,8 @@ func run(ctx context.Context) error {
 		URLRedirector:      urlRedirector,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
 	}))
+
+	server := httpserver.New(cfg, handler)
 
 	logger.Info("api server starting", "addr", server.Addr)
 
