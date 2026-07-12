@@ -240,6 +240,7 @@ curl -i http://localhost:8080/readyz
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
 | `503` | Service dependency is not ready or unique code generation retries were exhausted |
+| `504` | A downstream operation exceeded the configured request deadline |
 | `500` | Unexpected server failure |
 
 ## Configuration
@@ -258,7 +259,7 @@ curl -i http://localhost:8080/readyz
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
-| `REQUEST_TIMEOUT` | `10s` | HTTP request and MongoDB connection timeout |
+| `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |
 | `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown deadline |
 
 ## Verification
