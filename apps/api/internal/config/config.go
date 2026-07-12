@@ -36,8 +36,9 @@ type Config struct {
 }
 
 type HTTPConfig struct {
-	Addr    string
-	BaseURL string
+	Addr           string
+	BaseURL        string
+	AllowedOrigins []string
 }
 
 type MongoDBConfig struct {
@@ -100,8 +101,9 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
-			Addr:    value(lookup, "HTTP_ADDR", ":8080"),
-			BaseURL: trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
+			Addr:           value(lookup, "HTTP_ADDR", ":8080"),
+			BaseURL:        trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
+			AllowedOrigins: listValue(lookup, "CORS_ALLOWED_ORIGINS"),
 		},
 		MongoDB: MongoDBConfig{
 			URI:            value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
@@ -143,6 +145,12 @@ func (cfg Config) Validate() error {
 
 	if !isHTTPURL(cfg.HTTP.BaseURL) {
 		errs = append(errs, errors.New("BASE_URL must be a valid http or https URL with a host"))
+	}
+
+	for _, origin := range cfg.HTTP.AllowedOrigins {
+		if !isHTTPOrigin(origin) {
+			errs = append(errs, fmt.Errorf("CORS_ALLOWED_ORIGINS contains invalid origin %q", origin))
+		}
 	}
 
 	if strings.TrimSpace(cfg.MongoDB.URI) == "" {
@@ -195,6 +203,22 @@ func value(lookup func(string) (string, bool), key string, fallback string) stri
 	}
 
 	return strings.TrimSpace(raw)
+}
+
+func listValue(lookup func(string) (string, bool), key string) []string {
+	raw, ok := lookup(key)
+	if !ok {
+		return nil
+	}
+
+	var values []string
+	for _, item := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+
+	return values
 }
 
 func intValue(lookup func(string) (string, bool), key string, fallback int) (int, error) {
@@ -250,6 +274,24 @@ func isHTTPURL(value string) bool {
 	}
 
 	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
+}
+
+func isHTTPOrigin(value string) bool {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return false
+	}
+
+	return parsed.Host != "" &&
+		parsed.User == nil &&
+		(parsed.Path == "" || parsed.Path == "/") &&
+		parsed.RawQuery == "" &&
+		parsed.Fragment == ""
 }
 
 func oneOf(value string, allowed ...string) bool {
