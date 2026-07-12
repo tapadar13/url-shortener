@@ -84,6 +84,8 @@ make stack-up
 
 ## API
 
+The machine-readable API contract is available at [docs/openapi.yaml](docs/openapi.yaml).
+
 All API error responses use this shape:
 
 ```json
