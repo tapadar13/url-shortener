@@ -12,6 +12,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  api-contract:
+    name: API Contract Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npx --yes @redocly/cli@1.27.0 lint docs/openapi.yaml
+
   api-unit:
     name: API Unit Checks
     runs-on: ubuntu-latest
