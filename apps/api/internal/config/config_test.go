@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 
 	if cfg.HTTP.BaseURL != "http://localhost:8080" {
 		t.Fatalf("expected default base URL, got %q", cfg.HTTP.BaseURL)
+	}
+
+	if len(cfg.HTTP.AllowedOrigins) != 0 {
+		t.Fatalf("expected no default CORS origins, got %#v", cfg.HTTP.AllowedOrigins)
 	}
 
 	if cfg.MongoDB.Database != "url_shortener" {
@@ -50,6 +55,7 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"APP_ENV":                 EnvironmentProduction,
 		"HTTP_ADDR":               ":9090",
 		"BASE_URL":                "https://sho.rt/",
+		"CORS_ALLOWED_ORIGINS":    "http://localhost:3000, https://app.example.com",
 		"MONGODB_URI":             "mongodb://mongo:27017",
 		"MONGODB_DATABASE":        "links",
 		"MONGODB_URLS_COLLECTION": "short_urls",
@@ -75,6 +81,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 
 	if cfg.HTTP.BaseURL != "https://sho.rt" {
 		t.Fatalf("expected trailing slash to be trimmed, got %q", cfg.HTTP.BaseURL)
+	}
+
+	if len(cfg.HTTP.AllowedOrigins) != 2 || cfg.HTTP.AllowedOrigins[0] != "http://localhost:3000" || cfg.HTTP.AllowedOrigins[1] != "https://app.example.com" {
+		t.Fatalf("expected configured CORS origins, got %#v", cfg.HTTP.AllowedOrigins)
 	}
 
 	if cfg.MongoDB.URI != "mongodb://mongo:27017" {
@@ -109,6 +119,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"APP_ENV":                 "staging",
 		"HTTP_ADDR":               " ",
 		"BASE_URL":                "localhost:8080",
+		"CORS_ALLOWED_ORIGINS":    "ftp://example.com",
 		"MONGODB_URI":             " ",
 		"MONGODB_DATABASE":        " ",
 		"MONGODB_URLS_COLLECTION": " ",
@@ -124,7 +135,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		t.Fatal("expected validation error")
 	}
 
-	if cfg != (Config{}) {
+	if !reflect.DeepEqual(cfg, Config{}) {
 		t.Fatalf("expected empty config on validation failure, got %+v", cfg)
 	}
 
@@ -133,6 +144,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"APP_ENV",
 		"HTTP_ADDR",
 		"BASE_URL",
+		"CORS_ALLOWED_ORIGINS",
 		"MONGODB_URI",
 		"MONGODB_DATABASE",
 		"MONGODB_URLS_COLLECTION",
