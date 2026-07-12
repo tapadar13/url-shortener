@@ -44,7 +44,8 @@ type Service struct {
 }
 
 type CreateParams struct {
-	LongURL string
+	LongURL   string
+	ExpiresAt *time.Time
 }
 
 func New(repository CreateRepository, generator ShortCodeGenerator, options Options) (*Service, error) {
@@ -109,6 +110,7 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (urlmodel.URL
 			LongURL:   params.LongURL,
 			ShortCode: shortCode,
 			Now:       s.now(),
+			ExpiresAt: params.ExpiresAt,
 		})
 		if err != nil {
 			return urlmodel.URL{}, err
