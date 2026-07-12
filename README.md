@@ -262,9 +262,12 @@ curl -i http://localhost:8080/readyz
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
+| `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
 | `SHORT_CODE_LENGTH` | `7` | Generated Base62 short-code length, from 4 to 32 |
 | `SHORT_CODE_MAX_RETRIES` | `5` | Maximum attempts after a unique-index collision |
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
+| `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
+| `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
 | `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |
