@@ -21,6 +21,7 @@ const defaultRedirectStatusCode = http.StatusFound
 type createURLRequest struct {
 	URL       string     `json:"url"`
 	ExpiresAt *time.Time `json:"expiresAt"`
+	ShortCode *string    `json:"shortCode"`
 }
 
 type updateURLRequest struct {
@@ -58,6 +59,7 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 		created, err := creator.Create(r.Context(), service.CreateParams{
 			LongURL:   request.URL,
 			ExpiresAt: request.ExpiresAt,
+			ShortCode: request.ShortCode,
 		})
 		if err != nil {
 			writeCreateURLError(w, err)
@@ -189,6 +191,10 @@ func writeCreateURLError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusGatewayTimeout, "request_timeout", "request timed out")
 	case isExpirationError(err):
 		writeError(w, http.StatusBadRequest, "invalid_expiration", "expiresAt must be a future RFC3339 timestamp")
+	case isShortCodeError(err):
+		writeError(w, http.StatusBadRequest, "invalid_short_code", "short code is invalid")
+	case errors.Is(err, urlmodel.ErrDuplicateShortCode):
+		writeError(w, http.StatusConflict, "short_code_taken", "short code is already in use")
 	case isLongURLError(err):
 		writeError(w, http.StatusBadRequest, "invalid_url", "url must be a valid http or https URL")
 	case errors.Is(err, service.ErrShortCodeRetriesExhausted):
