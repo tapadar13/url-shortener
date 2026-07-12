@@ -58,6 +58,16 @@ func TestRouterReturnsNotFoundForUnknownRoute(t *testing.T) {
 	response := executeRequest(t, http.MethodGet, "/missing")
 
 	assertStatus(t, response, http.StatusNotFound)
+	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterReturnsMethodNotAllowedForUnsupportedMethod(t *testing.T) {
+	t.Parallel()
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: &fakeURLCreator{}}), http.MethodGet, "/shorten", "")
+
+	assertStatus(t, response, http.StatusMethodNotAllowed)
+	assertAPIError(t, response, "method_not_allowed")
 }
 
 func executeRequest(t *testing.T, method string, path string) *http.Response {
