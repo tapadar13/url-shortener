@@ -13,8 +13,8 @@ func TestURLIndexModels(t *testing.T) {
 	t.Parallel()
 
 	models := URLIndexModels()
-	if len(models) != 2 {
-		t.Fatalf("expected 2 index models, got %d", len(models))
+	if len(models) != 3 {
+		t.Fatalf("expected 3 index models, got %d", len(models))
 	}
 
 	assertIndexKeys(t, models[0].Keys, bson.D{{Key: "short_code", Value: 1}})
@@ -22,6 +22,9 @@ func TestURLIndexModels(t *testing.T) {
 
 	assertIndexKeys(t, models[1].Keys, bson.D{{Key: "created_at", Value: -1}})
 	assertIndexOptions(t, models[1].Options, CreatedAtIndexName, false)
+
+	assertIndexKeys(t, models[2].Keys, bson.D{{Key: "expires_at", Value: 1}})
+	assertTTLIndexOptions(t, models[2].Options, ExpirationIndexName)
 }
 
 func TestEnsureIndexesRejectsNilClient(t *testing.T) {
@@ -97,5 +100,28 @@ func assertIndexOptions(t *testing.T, builder *options.IndexOptionsBuilder, expe
 
 	if opts.Unique != nil && *opts.Unique {
 		t.Fatalf("did not expect unique index")
+	}
+}
+
+func assertTTLIndexOptions(t *testing.T, builder *options.IndexOptionsBuilder, expectedName string) {
+	t.Helper()
+
+	if builder == nil {
+		t.Fatal("expected index options")
+	}
+
+	var opts options.IndexOptions
+	for _, apply := range builder.List() {
+		if err := apply(&opts); err != nil {
+			t.Fatalf("expected option to apply cleanly: %v", err)
+		}
+	}
+
+	if opts.Name == nil || *opts.Name != expectedName {
+		t.Fatalf("expected index name %q, got %+v", expectedName, opts.Name)
+	}
+
+	if opts.ExpireAfterSeconds == nil || *opts.ExpireAfterSeconds != 0 {
+		t.Fatalf("expected zero-second TTL, got %+v", opts.ExpireAfterSeconds)
 	}
 }

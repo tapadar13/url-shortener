@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestNormalizeLongURLAcceptsValidHTTPURLs(t *testing.T) {
@@ -49,6 +50,35 @@ func TestNormalizeLongURLAcceptsValidHTTPURLs(t *testing.T) {
 				t.Fatalf("expected normalized URL %q, got %q", tt.expected, actual)
 			}
 		})
+	}
+}
+
+func TestNormalizeExpiresAt(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(time.Hour).In(time.FixedZone("IST", 5*60*60+30*60))
+
+	normalized, err := NormalizeExpiresAt(&expiresAt, now)
+	if err != nil {
+		t.Fatalf("expected expiration to be valid: %v", err)
+	}
+
+	if normalized == nil || !normalized.Equal(now.Add(time.Hour)) || normalized.Location() != time.UTC {
+		t.Fatalf("expected UTC expiration %s, got %v", now.Add(time.Hour), normalized)
+	}
+}
+
+func TestNormalizeExpiresAtAllowsNoExpiration(t *testing.T) {
+	t.Parallel()
+
+	normalized, err := NormalizeExpiresAt(nil, time.Now())
+	if err != nil {
+		t.Fatalf("expected no expiration to be valid: %v", err)
+	}
+
+	if normalized != nil {
+		t.Fatalf("expected no expiration, got %v", normalized)
 	}
 }
 
