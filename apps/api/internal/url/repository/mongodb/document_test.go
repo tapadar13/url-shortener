@@ -17,6 +17,7 @@ func TestNewURLDocumentMapsDomainRecord(t *testing.T) {
 	createdAt := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Hour)
 	lastAccessedAt := updatedAt.Add(time.Hour)
+	expiresAt := updatedAt.Add(24 * time.Hour)
 
 	record := urlmodel.URL{
 		ID:             id.Hex(),
@@ -26,6 +27,7 @@ func TestNewURLDocumentMapsDomainRecord(t *testing.T) {
 		CreatedAt:      createdAt,
 		UpdatedAt:      updatedAt,
 		LastAccessedAt: &lastAccessedAt,
+		ExpiresAt:      &expiresAt,
 	}
 
 	doc, err := newURLDocument(record)
@@ -55,6 +57,10 @@ func TestNewURLDocumentMapsDomainRecord(t *testing.T) {
 
 	if doc.LastAccessedAt == nil || !doc.LastAccessedAt.Equal(lastAccessedAt) {
 		t.Fatalf("expected last accessed time to be mapped")
+	}
+
+	if doc.ExpiresAt == nil || !doc.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("expected expiration time to be mapped")
 	}
 }
 
@@ -100,6 +106,7 @@ func TestURLDocumentToDomainMapsRecord(t *testing.T) {
 	createdAt := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Hour)
 	lastAccessedAt := updatedAt.Add(time.Hour)
+	expiresAt := updatedAt.Add(24 * time.Hour)
 
 	doc := urlDocument{
 		ID:             id,
@@ -109,6 +116,7 @@ func TestURLDocumentToDomainMapsRecord(t *testing.T) {
 		CreatedAt:      createdAt,
 		UpdatedAt:      updatedAt,
 		LastAccessedAt: &lastAccessedAt,
+		ExpiresAt:      &expiresAt,
 	}
 
 	record, err := doc.toDomain()
@@ -138,6 +146,10 @@ func TestURLDocumentToDomainMapsRecord(t *testing.T) {
 
 	if record.LastAccessedAt == nil || !record.LastAccessedAt.Equal(lastAccessedAt) {
 		t.Fatalf("expected last accessed time to be mapped")
+	}
+
+	if record.ExpiresAt == nil || !record.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("expected expiration time to be mapped")
 	}
 }
 

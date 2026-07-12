@@ -142,6 +142,40 @@ func TestRouterCreatesShortURL(t *testing.T) {
 	}
 }
 
+func TestRouterCreatesExpiringShortURL(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 7, 10, 9, 0, 0, 0, time.UTC)
+	expiresAt := createdAt.Add(24 * time.Hour)
+	creator := &fakeURLCreator{
+		created: urlmodel.URL{
+			ID:        "507f1f77bcf86cd799439011",
+			LongURL:   "https://example.com/articles/123",
+			ShortCode: "AbC1234",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+			ExpiresAt: &expiresAt,
+		},
+	}
+
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com/articles/123","expiresAt":"2026-07-11T09:00:00Z"}`)
+
+	assertStatus(t, response, http.StatusCreated)
+
+	var body urlResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("expected JSON response: %v", err)
+	}
+
+	if len(creator.params) != 1 || creator.params[0].ExpiresAt == nil || !creator.params[0].ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("expected expiration to be passed to service, got %#v", creator.params)
+	}
+
+	if body.ExpiresAt == nil || !body.ExpiresAt.Equal(expiresAt) {
+		t.Fatalf("expected response expiration %s, got %v", expiresAt, body.ExpiresAt)
+	}
+}
+
 func TestRouterRejectsInvalidCreateURLRequest(t *testing.T) {
 	t.Parallel()
 
@@ -164,6 +198,16 @@ func TestRouterMapsInvalidURLToBadRequest(t *testing.T) {
 
 	assertStatus(t, response, http.StatusBadRequest)
 	assertAPIError(t, response, "invalid_url")
+}
+
+func TestRouterMapsInvalidExpirationToBadRequest(t *testing.T) {
+	t.Parallel()
+
+	creator := &fakeURLCreator{err: urlmodel.ErrExpirationNotFuture}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com","expiresAt":"2026-07-01T00:00:00Z"}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_expiration")
 }
 
 func TestRouterMapsShortCodeRetryExhaustionToServiceUnavailable(t *testing.T) {
@@ -357,6 +401,20 @@ func TestRouterRejectsInvalidUpdateURLRequest(t *testing.T) {
 
 	updater := &fakeURLUpdater{}
 	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com","unexpected":true}`)
+
+	assertStatus(t, response, http.StatusBadRequest)
+	assertAPIError(t, response, "invalid_request")
+
+	if updater.called {
+		t.Fatal("expected update service not to be called")
+	}
+}
+
+func TestRouterRejectsExpirationOnUpdate(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com","expiresAt":"2026-07-11T09:00:00Z"}`)
 
 	assertStatus(t, response, http.StatusBadRequest)
 	assertAPIError(t, response, "invalid_request")

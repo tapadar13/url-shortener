@@ -18,6 +18,7 @@ deploy/
 
 - Collision-safe Base62 short-code generation backed by a unique MongoDB index
 - URL creation, retrieval, update, deletion, and statistics endpoints
+- Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
@@ -108,7 +109,8 @@ Content-Type: application/json
 
 ```json
 {
-  "url": "https://example.com/articles/123"
+  "url": "https://example.com/articles/123",
+  "expiresAt": "2026-08-12T08:00:00Z"
 }
 ```
 
@@ -120,7 +122,8 @@ Successful response: `201 Created`
   "url": "https://example.com/articles/123",
   "shortCode": "AbC1234",
   "createdAt": "2026-07-12T08:00:00Z",
-  "updatedAt": "2026-07-12T08:00:00Z"
+  "updatedAt": "2026-07-12T08:00:00Z",
+  "expiresAt": "2026-08-12T08:00:00Z"
 }
 ```
 
@@ -128,7 +131,7 @@ Successful response: `201 Created`
 curl -i http://localhost:8080/shorten \
   -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"url":"https://example.com/articles/123"}'
+  -d '{"url":"https://example.com/articles/123","expiresAt":"2026-08-12T08:00:00Z"}'
 ```
 
 ### Retrieve a Short URL
@@ -193,7 +196,8 @@ Successful response: `200 OK`
   "accessCount": 42,
   "createdAt": "2026-07-12T08:00:00Z",
   "updatedAt": "2026-07-12T08:00:00Z",
-  "lastAccessedAt": "2026-07-12T09:15:00Z"
+  "lastAccessedAt": "2026-07-12T09:15:00Z",
+  "expiresAt": "2026-08-12T08:00:00Z"
 }
 ```
 
@@ -236,7 +240,7 @@ curl -i http://localhost:8080/readyz
 | `201` | Short URL created |
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
-| `400` | Invalid JSON, URL, or short code |
+| `400` | Invalid JSON, URL, short code, or expiration |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
 | `503` | Service dependency is not ready or unique code generation retries were exhausted |

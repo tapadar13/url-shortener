@@ -18,16 +18,22 @@ const maxURLRequestBodyBytes = 1 << 20
 
 const defaultRedirectStatusCode = http.StatusFound
 
-type urlRequest struct {
+type createURLRequest struct {
+	URL       string     `json:"url"`
+	ExpiresAt *time.Time `json:"expiresAt"`
+}
+
+type updateURLRequest struct {
 	URL string `json:"url"`
 }
 
 type urlResponse struct {
-	ID        string    `json:"id"`
-	URL       string    `json:"url"`
-	ShortCode string    `json:"shortCode"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        string     `json:"id"`
+	URL       string     `json:"url"`
+	ShortCode string     `json:"shortCode"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 }
 
 type urlStatsResponse struct {
@@ -38,18 +44,20 @@ type urlStatsResponse struct {
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
 	LastAccessedAt *time.Time `json:"lastAccessedAt,omitempty"`
+	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
 }
 
 func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var request urlRequest
+		var request createURLRequest
 		if err := decodeURLRequest(w, r, &request); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "request body must contain only a URL field")
+			writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
 			return
 		}
 
 		created, err := creator.Create(r.Context(), service.CreateParams{
-			LongURL: request.URL,
+			LongURL:   request.URL,
+			ExpiresAt: request.ExpiresAt,
 		})
 		if err != nil {
 			writeCreateURLError(w, err)
@@ -62,9 +70,9 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 
 func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var request urlRequest
+		var request updateURLRequest
 		if err := decodeURLRequest(w, r, &request); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "request body must contain only a URL field")
+			writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
 			return
 		}
 
@@ -140,6 +148,7 @@ func newURLResponse(record urlmodel.URL) urlResponse {
 		ShortCode: record.ShortCode,
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
+		ExpiresAt: record.ExpiresAt,
 	}
 }
 
@@ -152,10 +161,11 @@ func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
 		LastAccessedAt: record.LastAccessedAt,
+		ExpiresAt:      record.ExpiresAt,
 	}
 }
 
-func decodeURLRequest(w http.ResponseWriter, r *http.Request, request *urlRequest) error {
+func decodeURLRequest(w http.ResponseWriter, r *http.Request, request any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxURLRequestBodyBytes)
 	defer r.Body.Close()
 
@@ -177,6 +187,8 @@ func writeCreateURLError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		writeError(w, http.StatusGatewayTimeout, "request_timeout", "request timed out")
+	case isExpirationError(err):
+		writeError(w, http.StatusBadRequest, "invalid_expiration", "expiresAt must be a future RFC3339 timestamp")
 	case isLongURLError(err):
 		writeError(w, http.StatusBadRequest, "invalid_url", "url must be a valid http or https URL")
 	case errors.Is(err, service.ErrShortCodeRetriesExhausted):
@@ -220,6 +232,11 @@ func isLongURLError(err error) bool {
 		errors.Is(err, urlmodel.ErrLongURLInvalid) ||
 		errors.Is(err, urlmodel.ErrLongURLSchemeUnsupported) ||
 		errors.Is(err, urlmodel.ErrLongURLHostRequired)
+}
+
+func isExpirationError(err error) bool {
+	return errors.Is(err, urlmodel.ErrExpirationInvalid) ||
+		errors.Is(err, urlmodel.ErrExpirationNotFuture)
 }
 
 func isShortCodeError(err error) bool {

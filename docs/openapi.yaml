@@ -35,7 +35,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/URLRequest'
+              $ref: '#/components/schemas/CreateURLRequest'
       responses:
         '201':
           $ref: '#/components/responses/URLCreated'
@@ -72,7 +72,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/URLRequest'
+              $ref: '#/components/schemas/UpdateURLRequest'
       responses:
         '200':
           $ref: '#/components/responses/URLResponse'
@@ -222,7 +222,7 @@ components:
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
     BadRequest:
-      description: Invalid request JSON, URL, or short code.
+      description: Invalid request JSON, URL, short code, or expiration.
       $ref: '#/components/responses/ErrorResponse'
     NotFound:
       description: Requested short URL or route was not found.
@@ -249,7 +249,22 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
-    URLRequest:
+    CreateURLRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: HTTP or HTTPS destination URL.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional future RFC3339 timestamp after which the link is unavailable.
+    UpdateURLRequest:
       type: object
       additionalProperties: false
       required:
@@ -283,6 +298,10 @@ components:
         updatedAt:
           type: string
           format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional timestamp after which the link is unavailable.
     URLStats:
       allOf:
         - $ref: '#/components/schemas/URL'

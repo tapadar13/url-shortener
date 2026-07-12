@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
@@ -37,6 +38,7 @@ type collection interface {
 
 type Repository struct {
 	collection collection
+	now        func() time.Time
 }
 
 func New(collection *mongo.Collection) *Repository {
@@ -48,8 +50,17 @@ func New(collection *mongo.Collection) *Repository {
 }
 
 func newRepository(collection collection) *Repository {
+	return newRepositoryWithClock(collection, time.Now)
+}
+
+func newRepositoryWithClock(collection collection, now func() time.Time) *Repository {
+	if now == nil {
+		now = time.Now
+	}
+
 	return &Repository{
 		collection: collection,
+		now:        now,
 	}
 }
 
@@ -105,7 +116,7 @@ func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (url
 		return urlmodel.URL{}, err
 	}
 
-	result := r.collection.FindOne(ctx, bson.D{{Key: "short_code", Value: normalizedShortCode}})
+	result := r.collection.FindOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
 	if result == nil {
 		return urlmodel.URL{}, errors.New("find URL by short code: missing result")
 	}
@@ -147,7 +158,7 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 	updatedAt := params.UpdatedAt.UTC()
 	result := r.collection.FindOneAndUpdate(
 		ctx,
-		bson.D{{Key: "short_code", Value: normalizedShortCode}},
+		r.activeShortCodeFilter(normalizedShortCode),
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "url", Value: normalizedLongURL},
 			{Key: "updated_at", Value: updatedAt},
@@ -183,7 +194,7 @@ func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) er
 		return err
 	}
 
-	result, err := r.collection.DeleteOne(ctx, bson.D{{Key: "short_code", Value: normalizedShortCode}})
+	result, err := r.collection.DeleteOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
 	if err != nil {
 		return fmt.Errorf("delete URL by short code: %w", err)
 	}
@@ -216,7 +227,7 @@ func (r *Repository) RecordAccess(ctx context.Context, params urlmodel.RecordAcc
 	accessedAt := params.AccessedAt.UTC()
 	result := r.collection.FindOneAndUpdate(
 		ctx,
-		bson.D{{Key: "short_code", Value: normalizedShortCode}},
+		r.activeShortCodeFilter(normalizedShortCode),
 		bson.D{
 			{Key: "$inc", Value: bson.D{{Key: "access_count", Value: 1}}},
 			{Key: "$set", Value: bson.D{{Key: "last_accessed_at", Value: accessedAt}}},
@@ -240,4 +251,19 @@ func (r *Repository) RecordAccess(ctx context.Context, params urlmodel.RecordAcc
 	}
 
 	return recorded, nil
+}
+
+func (r *Repository) activeShortCodeFilter(shortCode string) bson.D {
+	now := time.Now
+	if r != nil && r.now != nil {
+		now = r.now
+	}
+
+	return bson.D{
+		{Key: "short_code", Value: shortCode},
+		{Key: "$or", Value: bson.A{
+			bson.D{{Key: "expires_at", Value: nil}},
+			bson.D{{Key: "expires_at", Value: bson.D{{Key: "$gt", Value: now().UTC()}}}},
+		}},
+	}
 }

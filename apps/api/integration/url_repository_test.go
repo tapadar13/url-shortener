@@ -14,12 +14,14 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	urlrepository "github.com/tapadar13/url-shortener/apps/api/internal/url/repository/mongodb"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 const integrationTimeout = 10 * time.Second
 
 func TestURLRepositoryLifecycle(t *testing.T) {
-	repository := newIntegrationURLRepository(t)
+	repository, _ := newIntegrationURLRepository(t)
 	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
 	defer cancel()
 
@@ -88,7 +90,75 @@ func TestURLRepositoryLifecycle(t *testing.T) {
 	}
 }
 
-func newIntegrationURLRepository(t *testing.T) *urlrepository.Repository {
+func TestURLRepositoryTreatsExpiredURLAsNotFound(t *testing.T) {
+	repository, collection := newIntegrationURLRepository(t)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
+	defer cancel()
+
+	now := time.Now().UTC()
+	shortCode := fmt.Sprintf("Exp%d", now.UnixNano())
+	_, err := collection.InsertOne(ctx, bson.D{
+		{Key: "url", Value: "https://example.com/expired"},
+		{Key: "short_code", Value: shortCode},
+		{Key: "access_count", Value: 0},
+		{Key: "created_at", Value: now.Add(-2 * time.Hour)},
+		{Key: "updated_at", Value: now.Add(-2 * time.Hour)},
+		{Key: "expires_at", Value: now.Add(-time.Minute)},
+	})
+	if err != nil {
+		t.Fatalf("insert expired URL: %v", err)
+	}
+
+	operations := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "find",
+			run: func() error {
+				_, err := repository.FindByShortCode(ctx, shortCode)
+				return err
+			},
+		},
+		{
+			name: "update",
+			run: func() error {
+				_, err := repository.UpdateLongURL(ctx, urlmodel.UpdateLongURLParams{
+					ShortCode: shortCode,
+					LongURL:   "https://example.com/updated",
+					UpdatedAt: now,
+				})
+				return err
+			},
+		},
+		{
+			name: "record access",
+			run: func() error {
+				_, err := repository.RecordAccess(ctx, urlmodel.RecordAccessParams{
+					ShortCode:  shortCode,
+					AccessedAt: now,
+				})
+				return err
+			},
+		},
+		{
+			name: "delete",
+			run: func() error {
+				return repository.DeleteByShortCode(ctx, shortCode)
+			},
+		},
+	}
+
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			if err := operation.run(); !errors.Is(err, urlmodel.ErrNotFound) {
+				t.Fatalf("expected expired URL to be unavailable, got %v", err)
+			}
+		})
+	}
+}
+
+func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mongo.Collection) {
 	t.Helper()
 
 	uri := os.Getenv("MONGODB_INTEGRATION_URI")
@@ -128,5 +198,6 @@ func newIntegrationURLRepository(t *testing.T) *urlrepository.Repository {
 		t.Fatalf("ensure MongoDB indexes: %v", err)
 	}
 
-	return urlrepository.New(client.URLsCollection())
+	collection := client.URLsCollection()
+	return urlrepository.New(collection), collection
 }
