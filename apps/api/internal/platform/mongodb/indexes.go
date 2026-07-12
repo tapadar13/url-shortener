@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	ShortCodeIndexName = "uniq_urls_short_code"
-	CreatedAtIndexName = "idx_urls_created_at"
+	ShortCodeIndexName  = "uniq_urls_short_code"
+	CreatedAtIndexName  = "idx_urls_created_at"
+	ExpirationIndexName = "ttl_urls_expires_at"
 )
 
 func EnsureIndexes(ctx context.Context, client *Client) error {
@@ -44,6 +45,12 @@ func URLIndexModels() []mongo.IndexModel {
 			Keys: bson.D{{Key: "created_at", Value: -1}},
 			Options: options.Index().
 				SetName(CreatedAtIndexName),
+		},
+		{
+			Keys: bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().
+				SetName(ExpirationIndexName).
+				SetExpireAfterSeconds(0),
 		},
 	}
 }

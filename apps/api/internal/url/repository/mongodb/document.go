@@ -16,6 +16,7 @@ type urlDocument struct {
 	CreatedAt      time.Time     `bson:"created_at"`
 	UpdatedAt      time.Time     `bson:"updated_at"`
 	LastAccessedAt *time.Time    `bson:"last_accessed_at,omitempty"`
+	ExpiresAt      *time.Time    `bson:"expires_at,omitempty"`
 }
 
 func newURLDocument(record urlmodel.URL) (urlDocument, error) {
@@ -37,6 +38,7 @@ func newURLDocument(record urlmodel.URL) (urlDocument, error) {
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
 		LastAccessedAt: record.LastAccessedAt,
+		ExpiresAt:      record.ExpiresAt,
 	}, nil
 }
 
@@ -49,6 +51,7 @@ func (doc urlDocument) toDomain() (urlmodel.URL, error) {
 		CreatedAt:      doc.CreatedAt,
 		UpdatedAt:      doc.UpdatedAt,
 		LastAccessedAt: doc.LastAccessedAt,
+		ExpiresAt:      doc.ExpiresAt,
 	}
 
 	if doc.ID.IsZero() {
