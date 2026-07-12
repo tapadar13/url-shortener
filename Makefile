@@ -1,12 +1,13 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
-.PHONY: help api-run api-build api-test api-vet api-check api-image web-dev web-lint web-test web-build web-check mongo-up mongo-down stack-up stack-down
+.PHONY: help api-run api-build api-test api-integration api-vet api-check api-image web-dev web-lint web-test web-build web-check mongo-up mongo-down stack-up stack-down
 
 help:
 	@printf '%s\n' \
 		'api-run      Run the Go API with values from .env when present' \
 		'api-build    Build the Go API binary into bin/' \
 		'api-test     Run Go unit tests' \
+		'api-integration Run MongoDB integration tests (requires MONGODB_INTEGRATION_URI)' \
 		'api-vet      Run Go static analysis' \
 		'api-check    Run Go tests and static analysis' \
 		'api-image    Build the API container image' \
@@ -29,6 +30,9 @@ api-build:
 
 api-test:
 	@cd apps/api && go test ./...
+
+api-integration:
+	@cd apps/api && go test -tags=integration ./integration
 
 api-vet:
 	@cd apps/api && go vet ./...

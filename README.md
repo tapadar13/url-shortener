@@ -268,6 +268,15 @@ go test ./...
 go vet ./...
 ```
 
+Run MongoDB integration tests against an explicitly configured local MongoDB instance:
+
+```bash
+make mongo-up
+MONGODB_INTEGRATION_URI=mongodb://localhost:27017 make api-integration
+```
+
+Integration tests create a unique temporary database and remove it after each run.
+
 Run the frontend checks:
 
 ```bash
