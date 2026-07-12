@@ -40,6 +40,8 @@ type Dependencies struct {
 
 func NewRouter(dependencies Dependencies) http.Handler {
 	router := chi.NewRouter()
+	router.NotFound(handleNotFound)
+	router.MethodNotAllowed(handleMethodNotAllowed)
 
 	router.Get("/healthz", handleHealth)
 	router.Get("/readyz", handleReadiness)
@@ -66,4 +68,12 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	return router
+}
+
+func handleNotFound(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusNotFound, "not_found", "route was not found")
+}
+
+func handleMethodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	writeError(w, http.StatusMethodNotAllowed, "method_not_allowed", "method is not allowed for this route")
 }
