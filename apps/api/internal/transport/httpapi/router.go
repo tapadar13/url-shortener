@@ -30,6 +30,7 @@ type URLRedirector interface {
 }
 
 type Dependencies struct {
+	ReadinessChecker   ReadinessChecker
 	URLCreator         URLCreator
 	URLFinder          URLFinder
 	URLUpdater         URLUpdater
@@ -44,7 +45,7 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	router.MethodNotAllowed(handleMethodNotAllowed)
 
 	router.Get("/healthz", handleHealth)
-	router.Get("/readyz", handleReadiness)
+	router.Get("/readyz", newReadinessHandler(dependencies.ReadinessChecker))
 
 	if dependencies.URLCreator != nil {
 		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))

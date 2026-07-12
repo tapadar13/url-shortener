@@ -97,6 +97,7 @@ func run(ctx context.Context) error {
 	}
 
 	handler := httpserver.RequestID(httpserver.RequestLogger(logger)(httpapi.Recovery(logger)(httpapi.NewRouter(httpapi.Dependencies{
+		ReadinessChecker:   mongoClient,
 		URLCreator:         urlCreator,
 		URLFinder:          urlFinder,
 		URLUpdater:         urlUpdater,

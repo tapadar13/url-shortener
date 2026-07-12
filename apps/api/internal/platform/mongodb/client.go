@@ -59,6 +59,22 @@ func (c *Client) Disconnect(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) Ping(ctx context.Context) error {
+	if c == nil || c.client == nil {
+		return errors.New("MongoDB client is required")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if err := c.client.Ping(ctx, readpref.Primary()); err != nil {
+		return fmt.Errorf("ping MongoDB: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Client) Database() *mongo.Database {
 	if c == nil {
 		return nil
