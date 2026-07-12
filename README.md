@@ -71,6 +71,17 @@ npm install
 npm run dev
 ```
 
+## Common Commands
+
+Run `make help` from the repository root to list local development commands.
+
+```bash
+make api-check
+make web-check
+make mongo-up
+make stack-up
+```
+
 ## API
 
 All API error responses use this shape:
