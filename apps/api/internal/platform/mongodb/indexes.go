@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	ShortCodeIndexName  = "uniq_urls_short_code"
-	CreatedAtIndexName  = "idx_urls_created_at"
-	ExpirationIndexName = "ttl_urls_expires_at"
+	ShortCodeIndexName           = "uniq_urls_short_code"
+	CreatedAtIndexName           = "idx_urls_created_at"
+	ExpirationIndexName          = "ttl_urls_expires_at"
+	RateLimitExpirationIndexName = "ttl_rate_limits_expires_at"
 )
 
 func EnsureIndexes(ctx context.Context, client *Client) error {
@@ -21,16 +22,36 @@ func EnsureIndexes(ctx context.Context, client *Client) error {
 		return errors.New("MongoDB client is required")
 	}
 
-	collection := client.URLsCollection()
-	if collection == nil {
+	urlsCollection := client.URLsCollection()
+	if urlsCollection == nil {
 		return errors.New("URLs collection is required")
 	}
 
-	if _, err := collection.Indexes().CreateMany(ctx, URLIndexModels()); err != nil {
+	if _, err := urlsCollection.Indexes().CreateMany(ctx, URLIndexModels()); err != nil {
 		return fmt.Errorf("create URL indexes: %w", err)
 	}
 
+	rateLimitsCollection := client.RateLimitsCollection()
+	if rateLimitsCollection == nil {
+		return errors.New("rate limits collection is required")
+	}
+
+	if _, err := rateLimitsCollection.Indexes().CreateMany(ctx, RateLimitIndexModels()); err != nil {
+		return fmt.Errorf("create rate limit indexes: %w", err)
+	}
+
 	return nil
+}
+
+func RateLimitIndexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
+		{
+			Keys: bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().
+				SetName(RateLimitExpirationIndexName).
+				SetExpireAfterSeconds(0),
+		},
+	}
 }
 
 func URLIndexModels() []mongo.IndexModel {
