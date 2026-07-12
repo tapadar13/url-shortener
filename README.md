@@ -247,6 +247,7 @@ curl -i http://localhost:8080/readyz
 | `APP_ENV` | `development` | Application environment: `development`, `test`, or `production` |
 | `HTTP_ADDR` | `:8080` | HTTP bind address |
 | `BASE_URL` | `http://localhost:8080` | Validated public base URL reserved for future generated-link presentation |
+| `CORS_ALLOWED_ORIGINS` | empty | Comma-separated HTTP(S) origins allowed to call the API from browsers |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
