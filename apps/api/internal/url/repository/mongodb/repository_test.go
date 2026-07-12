@@ -142,6 +142,7 @@ func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
 
 	record := newValidURLRecord(t)
 	id := bson.NewObjectID()
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
 	collection := &fakeInsertOneCollection{
 		findResult: mongo.NewSingleResultFromDocument(urlDocument{
 			ID:          id,
@@ -152,7 +153,7 @@ func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
 			UpdatedAt:   record.UpdatedAt,
 		}, nil, nil),
 	}
-	repository := newRepository(collection)
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
 
 	found, err := repository.FindByShortCode(context.Background(), " "+record.ShortCode+" ")
 	if err != nil {
@@ -168,9 +169,7 @@ func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
 		t.Fatalf("expected BSON filter, got %T", collection.filter)
 	}
 
-	if len(filter) != 1 || filter[0].Key != "short_code" || filter[0].Value != record.ShortCode {
-		t.Fatalf("expected short code filter, got %#v", filter)
-	}
+	assertActiveShortCodeFilter(t, filter, record.ShortCode, now)
 
 	if found.ID != id.Hex() || found.LongURL != record.LongURL || found.AccessCount != 8 {
 		t.Fatalf("expected found URL record, got %#v", found)
@@ -228,6 +227,7 @@ func TestRepositoryUpdateLongURLReturnsUpdatedURL(t *testing.T) {
 	record := newValidURLRecord(t)
 	id := bson.NewObjectID()
 	updatedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
 	collection := &fakeInsertOneCollection{
 		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
 			ID:          id,
@@ -238,7 +238,7 @@ func TestRepositoryUpdateLongURLReturnsUpdatedURL(t *testing.T) {
 			UpdatedAt:   updatedAt.UTC(),
 		}, nil, nil),
 	}
-	repository := newRepository(collection)
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
 
 	updated, err := repository.UpdateLongURL(context.Background(), urlmodel.UpdateLongURLParams{
 		ShortCode: " " + record.ShortCode + " ",
@@ -253,7 +253,7 @@ func TestRepositoryUpdateLongURLReturnsUpdatedURL(t *testing.T) {
 		t.Fatalf("expected one update, got %d", collection.updateCount)
 	}
 
-	assertShortCodeFilter(t, collection.updateFilter, record.ShortCode)
+	assertActiveShortCodeFilter(t, collection.updateFilter, record.ShortCode, now)
 	assertURLUpdate(t, collection.update, "https://example.com/updated", updatedAt.UTC())
 
 	updateOptions := findOneAndUpdateOptions(t, collection.updateOptions)
@@ -326,13 +326,14 @@ func TestRepositoryUpdateLongURLWrapsQueryError(t *testing.T) {
 func TestRepositoryDeleteByShortCodeDeletesURL(t *testing.T) {
 	t.Parallel()
 
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
 	collection := &fakeInsertOneCollection{
 		deleteResult: &mongo.DeleteResult{
 			DeletedCount: 1,
 			Acknowledged: true,
 		},
 	}
-	repository := newRepository(collection)
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
 
 	if err := repository.DeleteByShortCode(context.Background(), " AbC123 "); err != nil {
 		t.Fatalf("expected URL deletion to succeed: %v", err)
@@ -342,7 +343,7 @@ func TestRepositoryDeleteByShortCodeDeletesURL(t *testing.T) {
 		t.Fatalf("expected one delete, got %d", collection.deleteCount)
 	}
 
-	assertShortCodeFilter(t, collection.deleteFilter, "AbC123")
+	assertActiveShortCodeFilter(t, collection.deleteFilter, "AbC123", now)
 }
 
 func TestRepositoryDeleteByShortCodeMapsMissingURL(t *testing.T) {
@@ -395,6 +396,7 @@ func TestRepositoryRecordAccessReturnsURLWithIncrementedCount(t *testing.T) {
 	id := bson.NewObjectID()
 	accessedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
 	accessedAtUTC := accessedAt.UTC()
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
 	collection := &fakeInsertOneCollection{
 		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
 			ID:             id,
@@ -406,7 +408,7 @@ func TestRepositoryRecordAccessReturnsURLWithIncrementedCount(t *testing.T) {
 			LastAccessedAt: &accessedAtUTC,
 		}, nil, nil),
 	}
-	repository := newRepository(collection)
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
 
 	recorded, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
 		ShortCode:  " " + record.ShortCode + " ",
@@ -420,7 +422,7 @@ func TestRepositoryRecordAccessReturnsURLWithIncrementedCount(t *testing.T) {
 		t.Fatalf("expected one access update, got %d", collection.updateCount)
 	}
 
-	assertShortCodeFilter(t, collection.updateFilter, record.ShortCode)
+	assertActiveShortCodeFilter(t, collection.updateFilter, record.ShortCode, now)
 	assertAccessUpdate(t, collection.update, accessedAtUTC)
 
 	updateOptions := findOneAndUpdateOptions(t, collection.updateOptions)
@@ -505,7 +507,7 @@ func TestRepositoryRecordAccessWrapsQueryError(t *testing.T) {
 	}
 }
 
-func assertShortCodeFilter(t *testing.T, value any, shortCode string) {
+func assertActiveShortCodeFilter(t *testing.T, value any, shortCode string, now time.Time) {
 	t.Helper()
 
 	filter, ok := value.(bson.D)
@@ -513,8 +515,27 @@ func assertShortCodeFilter(t *testing.T, value any, shortCode string) {
 		t.Fatalf("expected BSON filter, got %T", value)
 	}
 
-	if len(filter) != 1 || filter[0].Key != "short_code" || filter[0].Value != shortCode {
-		t.Fatalf("expected short code filter, got %#v", filter)
+	if len(filter) != 2 || filter[0].Key != "short_code" || filter[0].Value != shortCode || filter[1].Key != "$or" {
+		t.Fatalf("expected active short code filter, got %#v", filter)
+	}
+
+	conditions, ok := filter[1].Value.(bson.A)
+	if !ok || len(conditions) != 2 {
+		t.Fatalf("expected expiration conditions, got %#v", filter[1].Value)
+	}
+
+	if condition, ok := conditions[0].(bson.D); !ok || len(condition) != 1 || condition[0].Key != "expires_at" || condition[0].Value != nil {
+		t.Fatalf("expected non-expiring condition, got %#v", conditions[0])
+	}
+
+	condition, ok := conditions[1].(bson.D)
+	if !ok || len(condition) != 1 || condition[0].Key != "expires_at" {
+		t.Fatalf("expected future expiration condition, got %#v", conditions[1])
+	}
+
+	comparison, ok := condition[0].Value.(bson.D)
+	if !ok || len(comparison) != 1 || comparison[0].Key != "$gt" || comparison[0].Value != now {
+		t.Fatalf("expected expiration after %s, got %#v", now, condition[0].Value)
 	}
 }
 
