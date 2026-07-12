@@ -39,10 +39,10 @@ Create a local environment file:
 cp .env.example .env
 ```
 
-Start MongoDB:
+Start only MongoDB for local Go API development:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d
+docker compose -f deploy/docker-compose.yml up -d mongodb
 ```
 
 Run the API:
@@ -56,6 +56,12 @@ go run ./cmd/api
 ```
 
 The API listens on `http://localhost:8080` by default.
+
+Run the complete containerized API stack:
+
+```bash
+docker compose -f deploy/docker-compose.yml up --build
+```
 
 Run the frontend in a second terminal:
 
