@@ -78,4 +78,8 @@ func TestNilClientAccessorsReturnNil(t *testing.T) {
 	if client.URLsCollection() != nil {
 		t.Fatal("expected nil URLs collection")
 	}
+
+	if client.RateLimitsCollection() != nil {
+		t.Fatal("expected nil rate limits collection")
+	}
 }
