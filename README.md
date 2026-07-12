@@ -17,7 +17,7 @@ deploy/
 ## Current Features
 
 - Collision-safe Base62 short-code generation backed by a unique MongoDB index
-- URL creation, retrieval, update, deletion, and statistics endpoints
+- URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
@@ -110,7 +110,8 @@ Content-Type: application/json
 ```json
 {
   "url": "https://example.com/articles/123",
-  "expiresAt": "2026-08-12T08:00:00Z"
+  "expiresAt": "2026-08-12T08:00:00Z",
+  "shortCode": "summer2026"
 }
 ```
 
@@ -131,8 +132,10 @@ Successful response: `201 Created`
 curl -i http://localhost:8080/shorten \
   -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"url":"https://example.com/articles/123","expiresAt":"2026-08-12T08:00:00Z"}'
+  -d '{"url":"https://example.com/articles/123","expiresAt":"2026-08-12T08:00:00Z","shortCode":"summer2026"}'
 ```
+
+Omit `shortCode` to have the service generate one. Custom codes must be 4-32 Base62 characters, cannot use reserved route names, and return `409 Conflict` when already taken.
 
 ### Retrieve a Short URL
 
@@ -241,6 +244,7 @@ curl -i http://localhost:8080/readyz
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
 | `400` | Invalid JSON, URL, short code, or expiration |
+| `409` | Requested custom short code is already taken |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
 | `503` | Service dependency is not ready or unique code generation retries were exhausted |
