@@ -15,6 +15,8 @@ import (
 
 const maxURLRequestBodyBytes = 1 << 20
 
+const defaultRedirectStatusCode = http.StatusFound
+
 type urlRequest struct {
 	URL string `json:"url"`
 }
@@ -110,6 +112,23 @@ func newDeleteURLHandler(deleter URLDeleter) http.HandlerFunc {
 		}
 
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func newRedirectHandler(redirector URLRedirector, statusCode int) http.HandlerFunc {
+	if statusCode == 0 {
+		statusCode = defaultRedirectStatusCode
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		resolved, err := redirector.Resolve(r.Context(), chi.URLParam(r, "shortCode"))
+		if err != nil {
+			writeShortCodeURLError(w, err)
+			return
+		}
+
+		w.Header().Set("Location", resolved.LongURL)
+		w.WriteHeader(statusCode)
 	}
 }
 

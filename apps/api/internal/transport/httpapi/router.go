@@ -25,11 +25,17 @@ type URLDeleter interface {
 	DeleteByShortCode(ctx context.Context, shortCode string) error
 }
 
+type URLRedirector interface {
+	Resolve(ctx context.Context, shortCode string) (urlmodel.URL, error)
+}
+
 type Dependencies struct {
-	URLCreator URLCreator
-	URLFinder  URLFinder
-	URLUpdater URLUpdater
-	URLDeleter URLDeleter
+	URLCreator         URLCreator
+	URLFinder          URLFinder
+	URLUpdater         URLUpdater
+	URLDeleter         URLDeleter
+	URLRedirector      URLRedirector
+	RedirectStatusCode int
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -53,6 +59,10 @@ func NewRouter(dependencies Dependencies) http.Handler {
 
 	if dependencies.URLDeleter != nil {
 		router.Delete("/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
+	}
+
+	if dependencies.URLRedirector != nil {
+		router.Get("/{shortCode}", newRedirectHandler(dependencies.URLRedirector, dependencies.RedirectStatusCode))
 	}
 
 	return router
