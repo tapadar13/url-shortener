@@ -176,6 +176,16 @@ func TestRouterMapsShortCodeRetryExhaustionToServiceUnavailable(t *testing.T) {
 	assertAPIError(t, response, "short_code_unavailable")
 }
 
+func TestRouterMapsCreateTimeoutToGatewayTimeout(t *testing.T) {
+	t.Parallel()
+
+	creator := &fakeURLCreator{err: context.DeadlineExceeded}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com"}`)
+
+	assertStatus(t, response, http.StatusGatewayTimeout)
+	assertAPIError(t, response, "request_timeout")
+}
+
 func TestRouterMapsUnexpectedCreateErrorToInternalServerError(t *testing.T) {
 	t.Parallel()
 
@@ -237,6 +247,16 @@ func TestRouterMapsMissingShortURLToNotFound(t *testing.T) {
 
 	assertStatus(t, response, http.StatusNotFound)
 	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsLookupTimeoutToGatewayTimeout(t *testing.T) {
+	t.Parallel()
+
+	finder := &fakeURLFinder{err: context.DeadlineExceeded}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLFinder: finder}), http.MethodGet, "/shorten/AbC123", "")
+
+	assertStatus(t, response, http.StatusGatewayTimeout)
+	assertAPIError(t, response, "request_timeout")
 }
 
 func TestRouterMapsUnexpectedLookupErrorToInternalServerError(t *testing.T) {
@@ -374,6 +394,16 @@ func TestRouterMapsMissingUpdateURLToNotFound(t *testing.T) {
 
 	assertStatus(t, response, http.StatusNotFound)
 	assertAPIError(t, response, "not_found")
+}
+
+func TestRouterMapsUpdateTimeoutToGatewayTimeout(t *testing.T) {
+	t.Parallel()
+
+	updater := &fakeURLUpdater{err: context.DeadlineExceeded}
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLUpdater: updater}), http.MethodPut, "/shorten/AbC123", `{"url":"https://example.com"}`)
+
+	assertStatus(t, response, http.StatusGatewayTimeout)
+	assertAPIError(t, response, "request_timeout")
 }
 
 func TestRouterMapsUnexpectedUpdateErrorToInternalServerError(t *testing.T) {
