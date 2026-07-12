@@ -70,3 +70,24 @@ func TestRequestLoggerDefaultsUnwrittenResponseToOK(t *testing.T) {
 		t.Fatalf("expected default status and zero bytes, got %#v", entry)
 	}
 }
+
+func TestRequestLoggerIncludesRequestID(t *testing.T) {
+	t.Parallel()
+
+	var output bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&output, nil))
+	handler := RequestID(RequestLogger(logger)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+
+	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	var entry map[string]any
+	if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+		t.Fatalf("expected JSON log entry: %v", err)
+	}
+
+	if entry["request_id"] != recorder.Header().Get(requestIDHeader) {
+		t.Fatalf("expected matching request ID in log entry, got %#v", entry)
+	}
+}
