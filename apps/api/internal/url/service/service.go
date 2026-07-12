@@ -46,6 +46,7 @@ type Service struct {
 type CreateParams struct {
 	LongURL   string
 	ExpiresAt *time.Time
+	ShortCode *string
 }
 
 func New(repository CreateRepository, generator ShortCodeGenerator, options Options) (*Service, error) {
@@ -93,6 +94,25 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (urlmodel.URL
 
 	if s.now == nil {
 		s.now = time.Now
+	}
+
+	if params.ShortCode != nil {
+		record, err := urlmodel.New(urlmodel.NewParams{
+			LongURL:   params.LongURL,
+			ShortCode: *params.ShortCode,
+			Now:       s.now(),
+			ExpiresAt: params.ExpiresAt,
+		})
+		if err != nil {
+			return urlmodel.URL{}, err
+		}
+
+		created, err := s.repository.Create(ctx, record)
+		if err != nil {
+			return urlmodel.URL{}, fmt.Errorf("create URL: %w", err)
+		}
+
+		return created, nil
 	}
 
 	if s.maxRetries < 1 {
