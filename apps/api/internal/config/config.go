@@ -30,6 +30,7 @@ type Config struct {
 	MongoDB         MongoDBConfig
 	ShortCode       ShortCodeConfig
 	Redirect        RedirectConfig
+	RateLimit       RateLimitConfig
 	Log             LogConfig
 	RequestTimeout  time.Duration
 	ShutdownTimeout time.Duration
@@ -42,9 +43,10 @@ type HTTPConfig struct {
 }
 
 type MongoDBConfig struct {
-	URI            string
-	Database       string
-	URLsCollection string
+	URI                  string
+	Database             string
+	URLsCollection       string
+	RateLimitsCollection string
 }
 
 type ShortCodeConfig struct {
@@ -54,6 +56,11 @@ type ShortCodeConfig struct {
 
 type RedirectConfig struct {
 	StatusCode int
+}
+
+type RateLimitConfig struct {
+	Requests int
+	Window   time.Duration
 }
 
 type LogConfig struct {
@@ -98,6 +105,16 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	rateLimitRequests, err := intValue(lookup, "RATE_LIMIT_REQUESTS", 60)
+	if err != nil {
+		return Config{}, err
+	}
+
+	rateLimitWindow, err := durationValue(lookup, "RATE_LIMIT_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -106,9 +123,10 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			AllowedOrigins: listValue(lookup, "CORS_ALLOWED_ORIGINS"),
 		},
 		MongoDB: MongoDBConfig{
-			URI:            value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
-			Database:       value(lookup, "MONGODB_DATABASE", "url_shortener"),
-			URLsCollection: value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
+			URI:                  value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
+			Database:             value(lookup, "MONGODB_DATABASE", "url_shortener"),
+			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
+			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
 		},
 		ShortCode: ShortCodeConfig{
 			Length:     shortCodeLength,
@@ -116,6 +134,10 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		},
 		Redirect: RedirectConfig{
 			StatusCode: redirectStatus,
+		},
+		RateLimit: RateLimitConfig{
+			Requests: rateLimitRequests,
+			Window:   rateLimitWindow,
 		},
 		Log: LogConfig{
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
@@ -165,6 +187,10 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("MONGODB_URLS_COLLECTION is required"))
 	}
 
+	if strings.TrimSpace(cfg.MongoDB.RateLimitsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_RATE_LIMITS_COLLECTION is required"))
+	}
+
 	if cfg.ShortCode.Length < 4 || cfg.ShortCode.Length > 32 {
 		errs = append(errs, errors.New("SHORT_CODE_LENGTH must be between 4 and 32"))
 	}
@@ -175,6 +201,14 @@ func (cfg Config) Validate() error {
 
 	if !oneOf(strconv.Itoa(cfg.Redirect.StatusCode), "301", "302", "307", "308") {
 		errs = append(errs, errors.New("REDIRECT_STATUS must be one of 301, 302, 307, 308"))
+	}
+
+	if cfg.RateLimit.Requests < 0 {
+		errs = append(errs, errors.New("RATE_LIMIT_REQUESTS must be zero or greater"))
+	}
+
+	if cfg.RateLimit.Window <= 0 {
+		errs = append(errs, errors.New("RATE_LIMIT_WINDOW must be greater than zero"))
 	}
 
 	if !oneOf(cfg.Log.Level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError) {
