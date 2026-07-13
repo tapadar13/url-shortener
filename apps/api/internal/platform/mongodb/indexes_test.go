@@ -27,6 +27,18 @@ func TestURLIndexModels(t *testing.T) {
 	assertTTLIndexOptions(t, models[2].Options, ExpirationIndexName)
 }
 
+func TestRateLimitIndexModels(t *testing.T) {
+	t.Parallel()
+
+	models := RateLimitIndexModels()
+	if len(models) != 1 {
+		t.Fatalf("expected 1 index model, got %d", len(models))
+	}
+
+	assertIndexKeys(t, models[0].Keys, bson.D{{Key: "expires_at", Value: 1}})
+	assertTTLIndexOptions(t, models[0].Options, RateLimitExpirationIndexName)
+}
+
 func TestEnsureIndexesRejectsNilClient(t *testing.T) {
 	t.Parallel()
 

@@ -13,9 +13,10 @@ import (
 )
 
 type Client struct {
-	client         *mongo.Client
-	database       *mongo.Database
-	urlsCollection *mongo.Collection
+	client               *mongo.Client
+	database             *mongo.Database
+	urlsCollection       *mongo.Collection
+	rateLimitsCollection *mongo.Collection
 }
 
 func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duration) (*Client, error) {
@@ -41,9 +42,10 @@ func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duratio
 	database := driverClient.Database(cfg.Database)
 
 	return &Client{
-		client:         driverClient,
-		database:       database,
-		urlsCollection: database.Collection(cfg.URLsCollection),
+		client:               driverClient,
+		database:             database,
+		urlsCollection:       database.Collection(cfg.URLsCollection),
+		rateLimitsCollection: database.Collection(cfg.RateLimitsCollection),
 	}, nil
 }
 
@@ -89,4 +91,12 @@ func (c *Client) URLsCollection() *mongo.Collection {
 	}
 
 	return c.urlsCollection
+}
+
+func (c *Client) RateLimitsCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+
+	return c.rateLimitsCollection
 }

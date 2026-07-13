@@ -29,7 +29,7 @@ func TestCORSAllowsConfiguredOrigin(t *testing.T) {
 	}
 
 	if recorder.Header().Get(accessControlExposeHeaders) != exposeHeaders {
-		t.Fatalf("expected exposed request ID header, got %q", recorder.Header().Get(accessControlExposeHeaders))
+		t.Fatalf("expected exposed response headers, got %q", recorder.Header().Get(accessControlExposeHeaders))
 	}
 }
 

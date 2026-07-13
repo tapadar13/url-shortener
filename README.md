@@ -19,6 +19,7 @@ deploy/
 - Collision-safe Base62 short-code generation backed by a unique MongoDB index
 - URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
+- Distributed fixed-window request rate limiting with atomic MongoDB counters
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
@@ -99,6 +100,10 @@ All API error responses use this shape:
 ```
 
 Every API response also includes a server-generated `X-Request-ID` header. Use it to correlate a client request with structured server logs.
+
+When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. Exceeded requests return `429 Too Many Requests` with `Retry-After`. Health checks, readiness checks, and CORS preflights do not consume quota.
+
+Clients are identified from the direct socket address by default. When `TRUSTED_PROXY_CIDRS` is configured, `X-Forwarded-For` is accepted only from a trusted socket peer and the proxy chain is evaluated from right to left, preventing clients from bypassing limits with spoofed values.
 
 ### Create a Short URL
 
@@ -244,12 +249,13 @@ curl -i http://localhost:8080/readyz
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
 | `400` | Invalid JSON, URL, short code, or expiration |
-| `409` | Requested custom short code is already taken |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
-| `503` | Service dependency is not ready or unique code generation retries were exhausted |
-| `504` | A downstream operation exceeded the configured request deadline |
+| `409` | Requested custom short code is already taken |
+| `429` | Client request quota was exceeded |
 | `500` | Unexpected server failure |
+| `503` | Required dependency is unavailable or unique code generation retries were exhausted |
+| `504` | A downstream operation exceeded the configured request deadline |
 
 ## Configuration
 
@@ -259,12 +265,16 @@ curl -i http://localhost:8080/readyz
 | `HTTP_ADDR` | `:8080` | HTTP bind address |
 | `BASE_URL` | `http://localhost:8080` | Validated public base URL reserved for future generated-link presentation |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated HTTP(S) origins allowed to call the API from browsers |
+| `TRUSTED_PROXY_CIDRS` | empty | Comma-separated proxy CIDRs allowed to supply `X-Forwarded-For` client addresses |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
+| `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
 | `SHORT_CODE_LENGTH` | `7` | Generated Base62 short-code length, from 4 to 32 |
 | `SHORT_CODE_MAX_RETRIES` | `5` | Maximum attempts after a unique-index collision |
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
+| `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
+| `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
 | `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |

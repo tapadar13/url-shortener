@@ -12,6 +12,8 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
+	"github.com/tapadar13/url-shortener/apps/api/internal/ratelimit"
+	ratelimitrepository "github.com/tapadar13/url-shortener/apps/api/internal/ratelimit/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/transport/httpapi"
 	urlrepository "github.com/tapadar13/url-shortener/apps/api/internal/url/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
@@ -60,9 +62,28 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("ensure MongoDB indexes: %w", err)
 	}
 
-	logger.Info("MongoDB indexes ready", "collection", cfg.MongoDB.URLsCollection)
+	logger.Info("MongoDB indexes ready",
+		"urls_collection", cfg.MongoDB.URLsCollection,
+		"rate_limits_collection", cfg.MongoDB.RateLimitsCollection,
+	)
 
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
+	rateLimitRepository := ratelimitrepository.New(mongoClient.RateLimitsCollection())
+
+	requestLimiter, err := ratelimit.New(rateLimitRepository, ratelimit.Options{
+		Requests: cfg.RateLimit.Requests,
+		Window:   cfg.RateLimit.Window,
+	})
+	if err != nil {
+		return fmt.Errorf("create request rate limiter: %w", err)
+	}
+
+	logger.Info("request rate limiting configured",
+		"requests", cfg.RateLimit.Requests,
+		"window", cfg.RateLimit.Window,
+		"enabled", cfg.RateLimit.Requests > 0,
+		"trusted_proxy_cidrs", len(cfg.HTTP.TrustedProxyCIDRs),
+	)
 
 	urlCreator, err := service.New(
 		urlRepository,
@@ -105,6 +126,7 @@ func run(ctx context.Context) error {
 		URLRedirector:      urlRedirector,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
 	})
+	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
 	handler = httpserver.SecurityHeaders(handler)
 	handler = httpserver.Timeout(cfg.RequestTimeout)(handler)
