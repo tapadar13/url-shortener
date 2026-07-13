@@ -29,8 +29,10 @@ type Config struct {
 	Environment     string
 	HTTP            HTTPConfig
 	MongoDB         MongoDBConfig
+	Redis           RedisConfig
 	ShortCode       ShortCodeConfig
 	Redirect        RedirectConfig
+	RedirectCache   RedirectCacheConfig
 	RateLimit       RateLimitConfig
 	Log             LogConfig
 	RequestTimeout  time.Duration
@@ -51,6 +53,12 @@ type MongoDBConfig struct {
 	RateLimitsCollection string
 }
 
+type RedisConfig struct {
+	URL            string
+	KeyPrefix      string
+	ConnectTimeout time.Duration
+}
+
 type ShortCodeConfig struct {
 	Length     int
 	MaxRetries int
@@ -58,6 +66,11 @@ type ShortCodeConfig struct {
 
 type RedirectConfig struct {
 	StatusCode int
+}
+
+type RedirectCacheConfig struct {
+	Enabled bool
+	TTL     time.Duration
 }
 
 type RateLimitConfig struct {
@@ -122,6 +135,21 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	redisConnectTimeout, err := durationValue(lookup, "REDIS_CONNECT_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheEnabled, err := boolValue(lookup, "REDIRECT_CACHE_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheTTL, err := durationValue(lookup, "REDIRECT_CACHE_TTL", 10*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -136,12 +164,21 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
 			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
 		},
+		Redis: RedisConfig{
+			URL:            value(lookup, "REDIS_URL", "redis://localhost:6379/0"),
+			KeyPrefix:      value(lookup, "REDIS_KEY_PREFIX", "url-shortener"),
+			ConnectTimeout: redisConnectTimeout,
+		},
 		ShortCode: ShortCodeConfig{
 			Length:     shortCodeLength,
 			MaxRetries: shortCodeMaxRetries,
 		},
 		Redirect: RedirectConfig{
 			StatusCode: redirectStatus,
+		},
+		RedirectCache: RedirectCacheConfig{
+			Enabled: redirectCacheEnabled,
+			TTL:     redirectCacheTTL,
 		},
 		RateLimit: RateLimitConfig{
 			Requests: rateLimitRequests,
@@ -199,6 +236,18 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("MONGODB_RATE_LIMITS_COLLECTION is required"))
 	}
 
+	if !isRedisURL(cfg.Redis.URL) {
+		errs = append(errs, errors.New("REDIS_URL must be a valid redis or rediss URL with a host"))
+	}
+
+	if strings.TrimSpace(cfg.Redis.KeyPrefix) == "" {
+		errs = append(errs, errors.New("REDIS_KEY_PREFIX is required"))
+	}
+
+	if cfg.Redis.ConnectTimeout <= 0 {
+		errs = append(errs, errors.New("REDIS_CONNECT_TIMEOUT must be greater than zero"))
+	}
+
 	if cfg.ShortCode.Length < 4 || cfg.ShortCode.Length > 32 {
 		errs = append(errs, errors.New("SHORT_CODE_LENGTH must be between 4 and 32"))
 	}
@@ -209,6 +258,10 @@ func (cfg Config) Validate() error {
 
 	if !oneOf(strconv.Itoa(cfg.Redirect.StatusCode), "301", "302", "307", "308") {
 		errs = append(errs, errors.New("REDIRECT_STATUS must be one of 301, 302, 307, 308"))
+	}
+
+	if cfg.RedirectCache.TTL <= 0 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_TTL must be greater than zero"))
 	}
 
 	if cfg.RateLimit.Requests < 0 {
@@ -298,6 +351,20 @@ func intValue(lookup func(string) (string, bool), key string, fallback int) (int
 	return parsed, nil
 }
 
+func boolValue(lookup func(string) (string, bool), key string, fallback bool) (bool, error) {
+	raw, ok := lookup(key)
+	if !ok {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+
+	return parsed, nil
+}
+
 func durationValue(lookup func(string) (string, bool), key string, fallback time.Duration) (time.Duration, error) {
 	raw, ok := lookup(key)
 	if !ok {
@@ -349,6 +416,17 @@ func isHTTPOrigin(value string) bool {
 		parsed.User == nil &&
 		(parsed.Path == "" || parsed.Path == "/") &&
 		parsed.RawQuery == "" &&
+		parsed.Fragment == ""
+}
+
+func isRedisURL(value string) bool {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+
+	return (parsed.Scheme == "redis" || parsed.Scheme == "rediss") &&
+		parsed.Host != "" &&
 		parsed.Fragment == ""
 }
 
