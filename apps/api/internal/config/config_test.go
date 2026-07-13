@@ -55,7 +55,11 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default redirect status 302, got %d", cfg.Redirect.StatusCode)
 	}
 
-	if cfg.RedirectCache.Enabled || cfg.RedirectCache.TTL != 10*time.Minute {
+	if cfg.RedirectCache.Enabled ||
+		cfg.RedirectCache.TTL != 10*time.Minute ||
+		cfg.RedirectCache.AccessWorkers != 2 ||
+		cfg.RedirectCache.AccessQueueSize != 1024 ||
+		cfg.RedirectCache.AccessTimeout != 5*time.Second {
 		t.Fatalf("expected disabled redirect cache with default TTL, got %+v", cfg.RedirectCache)
 	}
 
@@ -72,29 +76,32 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := LoadFromMap(map[string]string{
-		"APP_ENV":                        EnvironmentProduction,
-		"HTTP_ADDR":                      ":9090",
-		"BASE_URL":                       "https://sho.rt/",
-		"CORS_ALLOWED_ORIGINS":           "http://localhost:3000, https://app.example.com",
-		"TRUSTED_PROXY_CIDRS":            "10.0.0.0/8, 2001:db8::/32",
-		"MONGODB_URI":                    "mongodb://mongo:27017",
-		"MONGODB_DATABASE":               "links",
-		"MONGODB_URLS_COLLECTION":        "short_urls",
-		"MONGODB_RATE_LIMITS_COLLECTION": "limits",
-		"REDIS_URL":                      "rediss://cache-user:secret@redis.example.com:6380/2",
-		"REDIS_KEY_PREFIX":               "shortener-production",
-		"REDIS_CONNECT_TIMEOUT":          "2s",
-		"SHORT_CODE_LENGTH":              "9",
-		"SHORT_CODE_MAX_RETRIES":         "12",
-		"REDIRECT_STATUS":                "307",
-		"REDIRECT_CACHE_ENABLED":         "true",
-		"REDIRECT_CACHE_TTL":             "15m",
-		"RATE_LIMIT_REQUESTS":            "120",
-		"RATE_LIMIT_WINDOW":              "5m",
-		"LOG_LEVEL":                      LogLevelWarn,
-		"LOG_FORMAT":                     LogFormatJSON,
-		"REQUEST_TIMEOUT":                "3s",
-		"SHUTDOWN_TIMEOUT":               "15s",
+		"APP_ENV":                          EnvironmentProduction,
+		"HTTP_ADDR":                        ":9090",
+		"BASE_URL":                         "https://sho.rt/",
+		"CORS_ALLOWED_ORIGINS":             "http://localhost:3000, https://app.example.com",
+		"TRUSTED_PROXY_CIDRS":              "10.0.0.0/8, 2001:db8::/32",
+		"MONGODB_URI":                      "mongodb://mongo:27017",
+		"MONGODB_DATABASE":                 "links",
+		"MONGODB_URLS_COLLECTION":          "short_urls",
+		"MONGODB_RATE_LIMITS_COLLECTION":   "limits",
+		"REDIS_URL":                        "rediss://cache-user:secret@redis.example.com:6380/2",
+		"REDIS_KEY_PREFIX":                 "shortener-production",
+		"REDIS_CONNECT_TIMEOUT":            "2s",
+		"SHORT_CODE_LENGTH":                "9",
+		"SHORT_CODE_MAX_RETRIES":           "12",
+		"REDIRECT_STATUS":                  "307",
+		"REDIRECT_CACHE_ENABLED":           "true",
+		"REDIRECT_CACHE_TTL":               "15m",
+		"REDIRECT_CACHE_ACCESS_WORKERS":    "4",
+		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "2048",
+		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "3s",
+		"RATE_LIMIT_REQUESTS":              "120",
+		"RATE_LIMIT_WINDOW":                "5m",
+		"LOG_LEVEL":                        LogLevelWarn,
+		"LOG_FORMAT":                       LogFormatJSON,
+		"REQUEST_TIMEOUT":                  "3s",
+		"SHUTDOWN_TIMEOUT":                 "15s",
 	})
 	if err != nil {
 		t.Fatalf("expected overrides to be valid: %v", err)
@@ -144,7 +151,11 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected redirect status 307, got %d", cfg.Redirect.StatusCode)
 	}
 
-	if !cfg.RedirectCache.Enabled || cfg.RedirectCache.TTL != 15*time.Minute {
+	if !cfg.RedirectCache.Enabled ||
+		cfg.RedirectCache.TTL != 15*time.Minute ||
+		cfg.RedirectCache.AccessWorkers != 4 ||
+		cfg.RedirectCache.AccessQueueSize != 2048 ||
+		cfg.RedirectCache.AccessTimeout != 3*time.Second {
 		t.Fatalf("expected overridden redirect cache config, got %+v", cfg.RedirectCache)
 	}
 
@@ -165,27 +176,30 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 
 	cfg, err := LoadFromMap(map[string]string{
-		"APP_ENV":                        "staging",
-		"HTTP_ADDR":                      " ",
-		"BASE_URL":                       "localhost:8080",
-		"CORS_ALLOWED_ORIGINS":           "ftp://example.com",
-		"MONGODB_URI":                    " ",
-		"MONGODB_DATABASE":               " ",
-		"MONGODB_URLS_COLLECTION":        " ",
-		"MONGODB_RATE_LIMITS_COLLECTION": " ",
-		"REDIS_URL":                      "https://redis.example.com",
-		"REDIS_KEY_PREFIX":               " ",
-		"REDIS_CONNECT_TIMEOUT":          "0s",
-		"SHORT_CODE_LENGTH":              "3",
-		"SHORT_CODE_MAX_RETRIES":         "0",
-		"REDIRECT_STATUS":                "200",
-		"REDIRECT_CACHE_TTL":             "0s",
-		"RATE_LIMIT_REQUESTS":            "-1",
-		"RATE_LIMIT_WINDOW":              "0s",
-		"LOG_LEVEL":                      "trace",
-		"LOG_FORMAT":                     "pretty",
-		"REQUEST_TIMEOUT":                "0s",
-		"SHUTDOWN_TIMEOUT":               "-1s",
+		"APP_ENV":                          "staging",
+		"HTTP_ADDR":                        " ",
+		"BASE_URL":                         "localhost:8080",
+		"CORS_ALLOWED_ORIGINS":             "ftp://example.com",
+		"MONGODB_URI":                      " ",
+		"MONGODB_DATABASE":                 " ",
+		"MONGODB_URLS_COLLECTION":          " ",
+		"MONGODB_RATE_LIMITS_COLLECTION":   " ",
+		"REDIS_URL":                        "https://redis.example.com",
+		"REDIS_KEY_PREFIX":                 " ",
+		"REDIS_CONNECT_TIMEOUT":            "0s",
+		"SHORT_CODE_LENGTH":                "3",
+		"SHORT_CODE_MAX_RETRIES":           "0",
+		"REDIRECT_STATUS":                  "200",
+		"REDIRECT_CACHE_TTL":               "0s",
+		"REDIRECT_CACHE_ACCESS_WORKERS":    "65",
+		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "100001",
+		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "0s",
+		"RATE_LIMIT_REQUESTS":              "-1",
+		"RATE_LIMIT_WINDOW":                "0s",
+		"LOG_LEVEL":                        "trace",
+		"LOG_FORMAT":                       "pretty",
+		"REQUEST_TIMEOUT":                  "0s",
+		"SHUTDOWN_TIMEOUT":                 "-1s",
 	})
 	if err == nil {
 		t.Fatal("expected validation error")
@@ -212,6 +226,9 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"SHORT_CODE_MAX_RETRIES",
 		"REDIRECT_STATUS",
 		"REDIRECT_CACHE_TTL",
+		"REDIRECT_CACHE_ACCESS_WORKERS",
+		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE",
+		"REDIRECT_CACHE_ACCESS_TIMEOUT",
 		"RATE_LIMIT_REQUESTS",
 		"RATE_LIMIT_WINDOW",
 		"LOG_LEVEL",
@@ -273,5 +290,20 @@ func TestLoadFromMapRejectsInvalidRedirectCacheBoolean(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "REDIRECT_CACHE_ENABLED must be a boolean") {
 		t.Fatalf("expected invalid redirect cache boolean error, got %q", err.Error())
+	}
+}
+
+func TestLoadFromMapRejectsUnparseableRedirectCacheWorkers(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFromMap(map[string]string{
+		"REDIRECT_CACHE_ACCESS_WORKERS": "many",
+	})
+	if err == nil {
+		t.Fatal("expected parsing error")
+	}
+
+	if !strings.Contains(err.Error(), "REDIRECT_CACHE_ACCESS_WORKERS must be an integer") {
+		t.Fatalf("expected invalid access workers error, got %q", err.Error())
 	}
 }
