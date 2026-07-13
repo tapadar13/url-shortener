@@ -43,12 +43,20 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.Redis.URL != "redis://localhost:6379/0" || cfg.Redis.KeyPrefix != "url-shortener" || cfg.Redis.ConnectTimeout != 5*time.Second {
+		t.Fatalf("expected default Redis config, got %+v", cfg.Redis)
+	}
+
 	if cfg.ShortCode.Length != 7 {
 		t.Fatalf("expected default short code length 7, got %d", cfg.ShortCode.Length)
 	}
 
 	if cfg.Redirect.StatusCode != 302 {
 		t.Fatalf("expected default redirect status 302, got %d", cfg.Redirect.StatusCode)
+	}
+
+	if cfg.RedirectCache.Enabled || cfg.RedirectCache.TTL != 10*time.Minute {
+		t.Fatalf("expected disabled redirect cache with default TTL, got %+v", cfg.RedirectCache)
 	}
 
 	if cfg.RateLimit.Requests != 60 || cfg.RateLimit.Window != time.Minute {
@@ -73,9 +81,14 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"MONGODB_DATABASE":               "links",
 		"MONGODB_URLS_COLLECTION":        "short_urls",
 		"MONGODB_RATE_LIMITS_COLLECTION": "limits",
+		"REDIS_URL":                      "rediss://cache-user:secret@redis.example.com:6380/2",
+		"REDIS_KEY_PREFIX":               "shortener-production",
+		"REDIS_CONNECT_TIMEOUT":          "2s",
 		"SHORT_CODE_LENGTH":              "9",
 		"SHORT_CODE_MAX_RETRIES":         "12",
 		"REDIRECT_STATUS":                "307",
+		"REDIRECT_CACHE_ENABLED":         "true",
+		"REDIRECT_CACHE_TTL":             "15m",
 		"RATE_LIMIT_REQUESTS":            "120",
 		"RATE_LIMIT_WINDOW":              "5m",
 		"LOG_LEVEL":                      LogLevelWarn,
@@ -119,12 +132,20 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected overridden rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.Redis.URL != "rediss://cache-user:secret@redis.example.com:6380/2" || cfg.Redis.KeyPrefix != "shortener-production" || cfg.Redis.ConnectTimeout != 2*time.Second {
+		t.Fatalf("expected overridden Redis config, got %+v", cfg.Redis)
+	}
+
 	if cfg.ShortCode.Length != 9 || cfg.ShortCode.MaxRetries != 12 {
 		t.Fatalf("expected overridden short code config, got %+v", cfg.ShortCode)
 	}
 
 	if cfg.Redirect.StatusCode != 307 {
 		t.Fatalf("expected redirect status 307, got %d", cfg.Redirect.StatusCode)
+	}
+
+	if !cfg.RedirectCache.Enabled || cfg.RedirectCache.TTL != 15*time.Minute {
+		t.Fatalf("expected overridden redirect cache config, got %+v", cfg.RedirectCache)
 	}
 
 	if cfg.RateLimit.Requests != 120 || cfg.RateLimit.Window != 5*time.Minute {
@@ -152,9 +173,13 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE":               " ",
 		"MONGODB_URLS_COLLECTION":        " ",
 		"MONGODB_RATE_LIMITS_COLLECTION": " ",
+		"REDIS_URL":                      "https://redis.example.com",
+		"REDIS_KEY_PREFIX":               " ",
+		"REDIS_CONNECT_TIMEOUT":          "0s",
 		"SHORT_CODE_LENGTH":              "3",
 		"SHORT_CODE_MAX_RETRIES":         "0",
 		"REDIRECT_STATUS":                "200",
+		"REDIRECT_CACHE_TTL":             "0s",
 		"RATE_LIMIT_REQUESTS":            "-1",
 		"RATE_LIMIT_WINDOW":              "0s",
 		"LOG_LEVEL":                      "trace",
@@ -180,9 +205,13 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE",
 		"MONGODB_URLS_COLLECTION",
 		"MONGODB_RATE_LIMITS_COLLECTION",
+		"REDIS_URL",
+		"REDIS_KEY_PREFIX",
+		"REDIS_CONNECT_TIMEOUT",
 		"SHORT_CODE_LENGTH",
 		"SHORT_CODE_MAX_RETRIES",
 		"REDIRECT_STATUS",
+		"REDIRECT_CACHE_TTL",
 		"RATE_LIMIT_REQUESTS",
 		"RATE_LIMIT_WINDOW",
 		"LOG_LEVEL",
@@ -229,5 +258,20 @@ func TestLoadFromMapRejectsInvalidTrustedProxyCIDR(t *testing.T) {
 
 	if !strings.Contains(err.Error(), `TRUSTED_PROXY_CIDRS contains invalid CIDR "not-a-cidr"`) {
 		t.Fatalf("expected invalid trusted proxy CIDR error, got %q", err.Error())
+	}
+}
+
+func TestLoadFromMapRejectsInvalidRedirectCacheBoolean(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFromMap(map[string]string{
+		"REDIRECT_CACHE_ENABLED": "sometimes",
+	})
+	if err == nil {
+		t.Fatal("expected parsing error")
+	}
+
+	if !strings.Contains(err.Error(), "REDIRECT_CACHE_ENABLED must be a boolean") {
+		t.Fatalf("expected invalid redirect cache boolean error, got %q", err.Error())
 	}
 }
