@@ -278,6 +278,9 @@ curl -i http://localhost:8080/readyz
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
 | `REDIRECT_CACHE_ENABLED` | `false` | Enables Redis-backed redirect caching |
 | `REDIRECT_CACHE_TTL` | `10m` | Maximum lifetime of a cached redirect destination |
+| `REDIRECT_CACHE_ACCESS_WORKERS` | `2` | Background workers that persist access counts from cache hits |
+| `REDIRECT_CACHE_ACCESS_QUEUE_SIZE` | `1024` | Maximum cache-hit access events buffered in memory |
+| `REDIRECT_CACHE_ACCESS_TIMEOUT` | `5s` | MongoDB deadline for each queued access update |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
