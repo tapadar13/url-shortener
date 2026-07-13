@@ -19,6 +19,7 @@ deploy/
 - Collision-safe Base62 short-code generation backed by a unique MongoDB index
 - URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
+- Distributed fixed-window request rate limiting with atomic MongoDB counters
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
@@ -99,6 +100,10 @@ All API error responses use this shape:
 ```
 
 Every API response also includes a server-generated `X-Request-ID` header. Use it to correlate a client request with structured server logs.
+
+When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. Exceeded requests return `429 Too Many Requests` with `Retry-After`. Health checks, readiness checks, and CORS preflights do not consume quota.
+
+Clients are identified from the direct socket address. Forwarded IP headers are intentionally ignored until trusted proxy ranges are explicitly configured, preventing clients from bypassing limits with spoofed headers.
 
 ### Create a Short URL
 
@@ -244,12 +249,13 @@ curl -i http://localhost:8080/readyz
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
 | `400` | Invalid JSON, URL, short code, or expiration |
-| `409` | Requested custom short code is already taken |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
-| `503` | Service dependency is not ready or unique code generation retries were exhausted |
-| `504` | A downstream operation exceeded the configured request deadline |
+| `409` | Requested custom short code is already taken |
+| `429` | Client request quota was exceeded |
 | `500` | Unexpected server failure |
+| `503` | Required dependency is unavailable or unique code generation retries were exhausted |
+| `504` | A downstream operation exceeded the configured request deadline |
 
 ## Configuration
 
