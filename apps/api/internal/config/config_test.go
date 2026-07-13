@@ -31,6 +31,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected no default CORS origins, got %#v", cfg.HTTP.AllowedOrigins)
 	}
 
+	if len(cfg.HTTP.TrustedProxyCIDRs) != 0 {
+		t.Fatalf("expected no trusted proxies by default, got %#v", cfg.HTTP.TrustedProxyCIDRs)
+	}
+
 	if cfg.MongoDB.Database != "url_shortener" {
 		t.Fatalf("expected default MongoDB database, got %q", cfg.MongoDB.Database)
 	}
@@ -64,6 +68,7 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"HTTP_ADDR":                      ":9090",
 		"BASE_URL":                       "https://sho.rt/",
 		"CORS_ALLOWED_ORIGINS":           "http://localhost:3000, https://app.example.com",
+		"TRUSTED_PROXY_CIDRS":            "10.0.0.0/8, 2001:db8::/32",
 		"MONGODB_URI":                    "mongodb://mongo:27017",
 		"MONGODB_DATABASE":               "links",
 		"MONGODB_URLS_COLLECTION":        "short_urls",
@@ -96,6 +101,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 
 	if len(cfg.HTTP.AllowedOrigins) != 2 || cfg.HTTP.AllowedOrigins[0] != "http://localhost:3000" || cfg.HTTP.AllowedOrigins[1] != "https://app.example.com" {
 		t.Fatalf("expected configured CORS origins, got %#v", cfg.HTTP.AllowedOrigins)
+	}
+
+	if len(cfg.HTTP.TrustedProxyCIDRs) != 2 || cfg.HTTP.TrustedProxyCIDRs[0].String() != "10.0.0.0/8" || cfg.HTTP.TrustedProxyCIDRs[1].String() != "2001:db8::/32" {
+		t.Fatalf("expected configured trusted proxy CIDRs, got %#v", cfg.HTTP.TrustedProxyCIDRs)
 	}
 
 	if cfg.MongoDB.URI != "mongodb://mongo:27017" {
@@ -205,5 +214,20 @@ func TestLoadFromMapRejectsUnparseableValues(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "SHORT_CODE_LENGTH") {
 		t.Fatalf("expected parsing error to include SHORT_CODE_LENGTH, got %q", err.Error())
+	}
+}
+
+func TestLoadFromMapRejectsInvalidTrustedProxyCIDR(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFromMap(map[string]string{
+		"TRUSTED_PROXY_CIDRS": "10.0.0.0/8, not-a-cidr",
+	})
+	if err == nil {
+		t.Fatal("expected parsing error")
+	}
+
+	if !strings.Contains(err.Error(), `TRUSTED_PROXY_CIDRS contains invalid CIDR "not-a-cidr"`) {
+		t.Fatalf("expected invalid trusted proxy CIDR error, got %q", err.Error())
 	}
 }

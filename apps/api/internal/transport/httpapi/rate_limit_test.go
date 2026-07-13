@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ func TestRateLimitRejectsRequestOverQuota(t *testing.T) {
 		ResetAt:   now.Add(30 * time.Second),
 	}}
 	called := false
-	handler := rateLimit(limiter, func() time.Time { return now })(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	handler := rateLimit(limiter, newClientIPResolver(nil), func() time.Time { return now })(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		called = true
 	}))
 
@@ -72,6 +73,22 @@ func TestRateLimitRejectsRequestOverQuota(t *testing.T) {
 
 	if response.Header.Get("Retry-After") != "30" {
 		t.Fatalf("expected retry after 30 seconds, got %q", response.Header.Get("Retry-After"))
+	}
+}
+
+func TestRateLimitUsesForwardedClientFromTrustedProxy(t *testing.T) {
+	t.Parallel()
+
+	limiter := &fakeRequestRateLimiter{result: ratelimit.Result{Allowed: true}}
+	handler := RateLimit(limiter, netip.MustParsePrefix("10.0.0.0/8"))(http.NotFoundHandler())
+	request := httptest.NewRequest(http.MethodGet, "/AbC123", nil)
+	request.RemoteAddr = "10.0.0.5:4321"
+	request.Header.Set(forwardedForHeader, "198.51.100.20")
+
+	handler.ServeHTTP(httptest.NewRecorder(), request)
+
+	if limiter.clientKey != "198.51.100.20" {
+		t.Fatalf("expected forwarded client IP, got %q", limiter.clientKey)
 	}
 }
 
