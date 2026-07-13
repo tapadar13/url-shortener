@@ -69,8 +69,11 @@ type RedirectConfig struct {
 }
 
 type RedirectCacheConfig struct {
-	Enabled bool
-	TTL     time.Duration
+	Enabled         bool
+	TTL             time.Duration
+	AccessWorkers   int
+	AccessQueueSize int
+	AccessTimeout   time.Duration
 }
 
 type RateLimitConfig struct {
@@ -150,6 +153,21 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	redirectCacheAccessWorkers, err := intValue(lookup, "REDIRECT_CACHE_ACCESS_WORKERS", 2)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheAccessQueueSize, err := intValue(lookup, "REDIRECT_CACHE_ACCESS_QUEUE_SIZE", 1024)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheAccessTimeout, err := durationValue(lookup, "REDIRECT_CACHE_ACCESS_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -177,8 +195,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			StatusCode: redirectStatus,
 		},
 		RedirectCache: RedirectCacheConfig{
-			Enabled: redirectCacheEnabled,
-			TTL:     redirectCacheTTL,
+			Enabled:         redirectCacheEnabled,
+			TTL:             redirectCacheTTL,
+			AccessWorkers:   redirectCacheAccessWorkers,
+			AccessQueueSize: redirectCacheAccessQueueSize,
+			AccessTimeout:   redirectCacheAccessTimeout,
 		},
 		RateLimit: RateLimitConfig{
 			Requests: rateLimitRequests,
@@ -262,6 +283,18 @@ func (cfg Config) Validate() error {
 
 	if cfg.RedirectCache.TTL <= 0 {
 		errs = append(errs, errors.New("REDIRECT_CACHE_TTL must be greater than zero"))
+	}
+
+	if cfg.RedirectCache.AccessWorkers < 1 || cfg.RedirectCache.AccessWorkers > 64 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_WORKERS must be between 1 and 64"))
+	}
+
+	if cfg.RedirectCache.AccessQueueSize < 1 || cfg.RedirectCache.AccessQueueSize > 100000 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_QUEUE_SIZE must be between 1 and 100000"))
+	}
+
+	if cfg.RedirectCache.AccessTimeout <= 0 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_TIMEOUT must be greater than zero"))
 	}
 
 	if cfg.RateLimit.Requests < 0 {
