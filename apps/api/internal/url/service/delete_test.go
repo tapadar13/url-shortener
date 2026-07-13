@@ -11,7 +11,7 @@ import (
 func TestNewDeleteServiceRequiresRepository(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewDeleteService(nil)
+	_, err := NewDeleteService(nil, DeleteOptions{})
 	if !errors.Is(err, ErrRepositoryRequired) {
 		t.Fatalf("expected repository error, got %v", err)
 	}
@@ -21,7 +21,7 @@ func TestDeleteServiceDeletesNormalizedShortCode(t *testing.T) {
 	t.Parallel()
 
 	repository := &fakeDeleteRepository{}
-	service, err := NewDeleteService(repository)
+	service, err := NewDeleteService(repository, DeleteOptions{})
 	if err != nil {
 		t.Fatalf("expected delete service: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestDeleteServiceRejectsInvalidShortCodeBeforeRepository(t *testing.T) {
 	t.Parallel()
 
 	repository := &fakeDeleteRepository{}
-	service, err := NewDeleteService(repository)
+	service, err := NewDeleteService(repository, DeleteOptions{})
 	if err != nil {
 		t.Fatalf("expected delete service: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestDeleteServiceReturnsRepositoryError(t *testing.T) {
 	t.Parallel()
 
 	expectedErr := errors.New("database unavailable")
-	service, err := NewDeleteService(&fakeDeleteRepository{err: expectedErr})
+	service, err := NewDeleteService(&fakeDeleteRepository{err: expectedErr}, DeleteOptions{})
 	if err != nil {
 		t.Fatalf("expected delete service: %v", err)
 	}
@@ -66,6 +66,69 @@ func TestDeleteServiceReturnsRepositoryError(t *testing.T) {
 	err = service.DeleteByShortCode(context.Background(), "AbC123")
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("expected repository error, got %v", err)
+	}
+}
+
+func TestDeleteServiceInvalidatesRedirectCache(t *testing.T) {
+	t.Parallel()
+
+	cache := &fakeDeleteCacheInvalidator{}
+	service, err := NewDeleteService(&fakeDeleteRepository{}, DeleteOptions{Cache: cache})
+	if err != nil {
+		t.Fatalf("expected delete service: %v", err)
+	}
+
+	if err := service.DeleteByShortCode(context.Background(), " AbC123 "); err != nil {
+		t.Fatalf("expected deletion to succeed: %v", err)
+	}
+
+	if cache.shortCode != "AbC123" {
+		t.Fatalf("expected normalized cache invalidation code, got %q", cache.shortCode)
+	}
+}
+
+func TestDeleteServiceReportsCacheInvalidationError(t *testing.T) {
+	t.Parallel()
+
+	cacheErr := errors.New("Redis unavailable")
+	reported := make(chan error, 1)
+	cache := &fakeDeleteCacheInvalidator{err: cacheErr}
+	service, err := NewDeleteService(&fakeDeleteRepository{}, DeleteOptions{
+		Cache: cache,
+		OnCacheError: func(err error) {
+			reported <- err
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected delete service: %v", err)
+	}
+
+	if err := service.DeleteByShortCode(context.Background(), "AbC123"); err != nil {
+		t.Fatalf("expected committed deletion despite cache error: %v", err)
+	}
+
+	select {
+	case err := <-reported:
+		if !errors.Is(err, cacheErr) {
+			t.Fatalf("expected reported cache error, got %v", err)
+		}
+	default:
+		t.Fatal("expected cache invalidation error to be reported")
+	}
+}
+
+func TestDeleteServiceDoesNotInvalidateCacheOnRepositoryError(t *testing.T) {
+	t.Parallel()
+
+	cache := &fakeDeleteCacheInvalidator{}
+	service, err := NewDeleteService(&fakeDeleteRepository{err: errors.New("database unavailable")}, DeleteOptions{Cache: cache})
+	if err != nil {
+		t.Fatalf("expected delete service: %v", err)
+	}
+
+	_ = service.DeleteByShortCode(context.Background(), "AbC123")
+	if cache.called {
+		t.Fatal("expected cache not to be invalidated")
 	}
 }
 
@@ -89,4 +152,16 @@ func (r *fakeDeleteRepository) DeleteByShortCode(_ context.Context, shortCode st
 	r.shortCode = shortCode
 
 	return r.err
+}
+
+type fakeDeleteCacheInvalidator struct {
+	shortCode string
+	err       error
+	called    bool
+}
+
+func (c *fakeDeleteCacheInvalidator) Delete(_ context.Context, shortCode string) error {
+	c.called = true
+	c.shortCode = shortCode
+	return c.err
 }

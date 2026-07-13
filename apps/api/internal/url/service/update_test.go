@@ -123,6 +123,85 @@ func TestUpdateServiceReturnsRepositoryError(t *testing.T) {
 	}
 }
 
+func TestUpdateServiceInvalidatesRedirectCache(t *testing.T) {
+	t.Parallel()
+
+	repository := &fakeUpdateRepository{record: urlmodel.URL{
+		LongURL:   "https://example.com/updated",
+		ShortCode: "AbC123",
+	}}
+	cache := &fakeUpdateCacheInvalidator{}
+	service, err := NewUpdateService(repository, UpdateOptions{Cache: cache})
+	if err != nil {
+		t.Fatalf("expected update service: %v", err)
+	}
+
+	updated, err := service.UpdateLongURL(context.Background(), UpdateParams{
+		ShortCode: " AbC123 ",
+		LongURL:   "https://example.com/updated",
+	})
+	if err != nil {
+		t.Fatalf("expected update to succeed: %v", err)
+	}
+
+	if updated != repository.record || cache.shortCode != "AbC123" {
+		t.Fatalf("expected updated record and cache invalidation, got updated=%+v code=%q", updated, cache.shortCode)
+	}
+}
+
+func TestUpdateServiceReportsCacheInvalidationError(t *testing.T) {
+	t.Parallel()
+
+	cacheErr := errors.New("Redis unavailable")
+	reported := make(chan error, 1)
+	repository := &fakeUpdateRepository{record: urlmodel.URL{LongURL: "https://example.com/updated", ShortCode: "AbC123"}}
+	cache := &fakeUpdateCacheInvalidator{err: cacheErr}
+	service, err := NewUpdateService(repository, UpdateOptions{
+		Cache: cache,
+		OnCacheError: func(err error) {
+			reported <- err
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected update service: %v", err)
+	}
+
+	updated, err := service.UpdateLongURL(context.Background(), UpdateParams{
+		ShortCode: "AbC123",
+		LongURL:   "https://example.com/updated",
+	})
+	if err != nil || updated != repository.record {
+		t.Fatalf("expected committed update despite cache error, updated=%+v err=%v", updated, err)
+	}
+
+	select {
+	case err := <-reported:
+		if !errors.Is(err, cacheErr) {
+			t.Fatalf("expected reported cache error, got %v", err)
+		}
+	default:
+		t.Fatal("expected cache invalidation error to be reported")
+	}
+}
+
+func TestUpdateServiceDoesNotInvalidateCacheOnRepositoryError(t *testing.T) {
+	t.Parallel()
+
+	cache := &fakeUpdateCacheInvalidator{}
+	service, err := NewUpdateService(&fakeUpdateRepository{err: errors.New("database unavailable")}, UpdateOptions{Cache: cache})
+	if err != nil {
+		t.Fatalf("expected update service: %v", err)
+	}
+
+	_, _ = service.UpdateLongURL(context.Background(), UpdateParams{
+		ShortCode: "AbC123",
+		LongURL:   "https://example.com/updated",
+	})
+	if cache.called {
+		t.Fatal("expected cache not to be invalidated")
+	}
+}
+
 func TestUpdateServiceRequiresConfiguredRepository(t *testing.T) {
 	t.Parallel()
 
@@ -151,4 +230,16 @@ func (r *fakeUpdateRepository) UpdateLongURL(_ context.Context, params urlmodel.
 	}
 
 	return r.record, nil
+}
+
+type fakeUpdateCacheInvalidator struct {
+	shortCode string
+	err       error
+	called    bool
+}
+
+func (c *fakeUpdateCacheInvalidator) Delete(_ context.Context, shortCode string) error {
+	c.called = true
+	c.shortCode = shortCode
+	return c.err
 }

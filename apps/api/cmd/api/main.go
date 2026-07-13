@@ -12,9 +12,11 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
+	redisplatform "github.com/tapadar13/url-shortener/apps/api/internal/platform/redis"
 	"github.com/tapadar13/url-shortener/apps/api/internal/ratelimit"
 	ratelimitrepository "github.com/tapadar13/url-shortener/apps/api/internal/ratelimit/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/transport/httpapi"
+	rediscache "github.com/tapadar13/url-shortener/apps/api/internal/url/cache/redis"
 	urlrepository "github.com/tapadar13/url-shortener/apps/api/internal/url/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
@@ -70,6 +72,72 @@ func run(ctx context.Context) error {
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
 	rateLimitRepository := ratelimitrepository.New(mongoClient.RateLimitsCollection())
 
+	updateOptions := service.UpdateOptions{}
+	deleteOptions := service.DeleteOptions{}
+	redirectOptions := service.RedirectOptions{}
+
+	if cfg.RedirectCache.Enabled {
+		redisClient, err := redisplatform.Connect(ctx, cfg.Redis)
+		if err != nil {
+			return fmt.Errorf("connect Redis redirect cache: %w", err)
+		}
+		defer func() {
+			if err := redisClient.Close(); err != nil {
+				logger.Error("Redis disconnect failed", "error", err)
+				return
+			}
+
+			logger.Info("Redis disconnected")
+		}()
+
+		logger.Info("Redis redirect cache connected")
+
+		redirectCache := rediscache.New(redisClient.Driver(), redisClient.KeyPrefix())
+		accessRecorder, err := service.NewAsyncAccessRecorder(urlRepository, service.AccessRecorderOptions{
+			Workers:   cfg.RedirectCache.AccessWorkers,
+			QueueSize: cfg.RedirectCache.AccessQueueSize,
+			Timeout:   cfg.RedirectCache.AccessTimeout,
+			OnError: func(err error) {
+				logger.Error("queued URL access recording failed", "error", err)
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("create cached access recorder: %w", err)
+		}
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+			defer cancel()
+
+			if err := accessRecorder.Close(shutdownCtx); err != nil {
+				logger.Error("cached access recorder shutdown failed", "error", err)
+				return
+			}
+
+			logger.Info("cached access recorder stopped")
+		}()
+
+		reportCacheError := func(err error) {
+			logger.Warn("redirect cache operation failed", "error", err)
+		}
+
+		updateOptions.Cache = redirectCache
+		updateOptions.OnCacheError = reportCacheError
+		deleteOptions.Cache = redirectCache
+		deleteOptions.OnCacheError = reportCacheError
+		redirectOptions.Cache = redirectCache
+		redirectOptions.CacheTTL = cfg.RedirectCache.TTL
+		redirectOptions.Recorder = accessRecorder
+		redirectOptions.OnCacheError = reportCacheError
+	}
+
+	logger.Info("redirect cache configured",
+		"enabled", cfg.RedirectCache.Enabled,
+		"ttl", cfg.RedirectCache.TTL,
+		"access_workers", cfg.RedirectCache.AccessWorkers,
+		"access_queue_size", cfg.RedirectCache.AccessQueueSize,
+		"access_timeout", cfg.RedirectCache.AccessTimeout,
+	)
+
 	requestLimiter, err := ratelimit.New(rateLimitRepository, ratelimit.Options{
 		Requests: cfg.RateLimit.Requests,
 		Window:   cfg.RateLimit.Window,
@@ -102,17 +170,17 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL lookup service: %w", err)
 	}
 
-	urlUpdater, err := service.NewUpdateService(urlRepository, service.UpdateOptions{})
+	urlUpdater, err := service.NewUpdateService(urlRepository, updateOptions)
 	if err != nil {
 		return fmt.Errorf("create URL update service: %w", err)
 	}
 
-	urlDeleter, err := service.NewDeleteService(urlRepository)
+	urlDeleter, err := service.NewDeleteService(urlRepository, deleteOptions)
 	if err != nil {
 		return fmt.Errorf("create URL delete service: %w", err)
 	}
 
-	urlRedirector, err := service.NewRedirectService(urlRepository, service.RedirectOptions{})
+	urlRedirector, err := service.NewRedirectService(urlRepository, redirectOptions)
 	if err != nil {
 		return fmt.Errorf("create URL redirect service: %w", err)
 	}

@@ -11,7 +11,7 @@ apps/
   api/    Go HTTP API and MongoDB persistence
   web/    Next.js marketing frontend
 deploy/
-  docker-compose.yml    Local MongoDB service
+  docker-compose.yml    Local API, MongoDB, and Redis stack
 ```
 
 ## Current Features
@@ -20,12 +20,13 @@ deploy/
 - URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Distributed fixed-window request rate limiting with atomic MongoDB counters
+- Optional Redis redirect cache with bounded asynchronous access recording
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
-- Graceful API shutdown and MongoDB connection lifecycle management
+- Graceful API shutdown with MongoDB, Redis, and access-recorder lifecycle management
 
 ## Prerequisites
 
@@ -41,11 +42,13 @@ Create a local environment file:
 cp .env.example .env
 ```
 
-Start only MongoDB for local Go API development:
+Start MongoDB and Redis for local Go API development:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d mongodb
+docker compose -f deploy/docker-compose.yml up -d mongodb redis
 ```
+
+Set `REDIRECT_CACHE_ENABLED=true` in `.env` to exercise Redis-backed redirects when running the Go API directly. The complete containerized stack enables caching automatically.
 
 Run the API:
 
@@ -80,7 +83,7 @@ Run `make help` from the repository root to list local development commands.
 ```bash
 make api-check
 make web-check
-make mongo-up
+make data-up
 make stack-up
 ```
 
@@ -270,9 +273,17 @@ curl -i http://localhost:8080/readyz
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
 | `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL; `rediss://` enables TLS |
+| `REDIS_KEY_PREFIX` | `url-shortener` | Namespace prefix used for this service's Redis keys |
+| `REDIS_CONNECT_TIMEOUT` | `5s` | Maximum duration allowed for the initial Redis connection check |
 | `SHORT_CODE_LENGTH` | `7` | Generated Base62 short-code length, from 4 to 32 |
 | `SHORT_CODE_MAX_RETRIES` | `5` | Maximum attempts after a unique-index collision |
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
+| `REDIRECT_CACHE_ENABLED` | `false` | Enables Redis-backed redirect caching |
+| `REDIRECT_CACHE_TTL` | `10m` | Maximum lifetime of a cached redirect destination |
+| `REDIRECT_CACHE_ACCESS_WORKERS` | `2` | Background workers that persist access counts from cache hits |
+| `REDIRECT_CACHE_ACCESS_QUEUE_SIZE` | `1024` | Maximum cache-hit access events buffered in memory |
+| `REDIRECT_CACHE_ACCESS_TIMEOUT` | `5s` | MongoDB deadline for each queued access update |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
@@ -290,14 +301,16 @@ go test ./...
 go vet ./...
 ```
 
-Run MongoDB integration tests against an explicitly configured local MongoDB instance:
+Run MongoDB and Redis integration tests against explicitly configured local services:
 
 ```bash
-make mongo-up
-MONGODB_INTEGRATION_URI=mongodb://localhost:27017 make api-integration
+make data-up
+MONGODB_INTEGRATION_URI=mongodb://localhost:27017 \
+REDIS_INTEGRATION_URL=redis://localhost:6379/0 \
+make api-integration
 ```
 
-Integration tests create a unique temporary database and remove it after each run.
+Integration tests create isolated MongoDB databases and Redis key namespaces, then remove their data after each run.
 
 Run the frontend checks:
 

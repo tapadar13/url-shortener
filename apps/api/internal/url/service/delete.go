@@ -11,17 +11,26 @@ type DeleteRepository interface {
 	DeleteByShortCode(ctx context.Context, shortCode string) error
 }
 
-type DeleteService struct {
-	repository DeleteRepository
+type DeleteOptions struct {
+	Cache        RedirectCacheInvalidator
+	OnCacheError func(error)
 }
 
-func NewDeleteService(repository DeleteRepository) (*DeleteService, error) {
+type DeleteService struct {
+	repository   DeleteRepository
+	cache        RedirectCacheInvalidator
+	onCacheError func(error)
+}
+
+func NewDeleteService(repository DeleteRepository, options DeleteOptions) (*DeleteService, error) {
 	if repository == nil {
 		return nil, ErrRepositoryRequired
 	}
 
 	return &DeleteService{
-		repository: repository,
+		repository:   repository,
+		cache:        options.Cache,
+		onCacheError: options.OnCacheError,
 	}, nil
 }
 
@@ -38,6 +47,8 @@ func (s *DeleteService) DeleteByShortCode(ctx context.Context, shortCode string)
 	if err := s.repository.DeleteByShortCode(ctx, normalizedShortCode); err != nil {
 		return fmt.Errorf("delete URL by short code: %w", err)
 	}
+
+	invalidateRedirectCache(ctx, s.cache, normalizedShortCode, s.onCacheError)
 
 	return nil
 }
