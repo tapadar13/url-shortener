@@ -13,6 +13,9 @@ var (
 	ErrRequestsInvalid      = errors.New("rate limit requests must be zero or greater")
 	ErrWindowInvalid        = errors.New("rate limit window must be greater than zero")
 	ErrClientKeyRequired    = errors.New("rate limit client key is required")
+	ErrWindowStartRequired  = errors.New("rate limit window start is required")
+	ErrExpirationRequired   = errors.New("rate limit expiration is required")
+	ErrExpirationInvalid    = errors.New("rate limit expiration must be after window start")
 )
 
 type CounterStore interface {
