@@ -16,7 +16,7 @@ const (
 	accessControlRequestHeaders = "Access-Control-Request-Headers"
 	allowMethods                = "GET, POST, PUT, DELETE, OPTIONS"
 	allowHeaders                = "Content-Type, X-Request-ID"
-	exposeHeaders               = "X-Request-ID"
+	exposeHeaders               = "X-Request-ID, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Retry-After"
 	preflightMaxAge             = "600"
 )
 
