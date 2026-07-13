@@ -6,51 +6,21 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/tapadar13/url-shortener/apps/api/internal/config"
-	redisplatform "github.com/tapadar13/url-shortener/apps/api/internal/platform/redis"
 	urlcache "github.com/tapadar13/url-shortener/apps/api/internal/url/cache"
 	rediscache "github.com/tapadar13/url-shortener/apps/api/internal/url/cache/redis"
 )
 
 func TestRedirectCacheRepositoryLifecycle(t *testing.T) {
-	redisURL := os.Getenv("REDIS_INTEGRATION_URL")
-	if redisURL == "" {
-		t.Skip("set REDIS_INTEGRATION_URL to run Redis integration tests")
-	}
-
 	now := time.Now()
 	shortCode := fmt.Sprintf("Cache%d", now.UnixNano())
 	keyPrefix := fmt.Sprintf("url-shortener-integration:%d", now.UnixNano())
 	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
 	defer cancel()
 
-	client, err := redisplatform.Connect(ctx, config.RedisConfig{
-		URL:            redisURL,
-		KeyPrefix:      keyPrefix,
-		ConnectTimeout: integrationTimeout,
-	})
-	if err != nil {
-		t.Fatalf("connect Redis: %v", err)
-	}
-	t.Cleanup(func() {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), integrationTimeout)
-		defer cleanupCancel()
-
-		key := fmt.Sprintf("%s:redirect:%s", keyPrefix, shortCode)
-		if driver := client.Driver(); driver != nil {
-			if err := driver.Del(cleanupCtx, key).Err(); err != nil {
-				t.Errorf("delete integration cache key: %v", err)
-			}
-		}
-
-		if err := client.Close(); err != nil {
-			t.Errorf("close Redis: %v", err)
-		}
-	})
+	client := newIntegrationRedisClient(t, keyPrefix)
 
 	repository := rediscache.New(client.Driver(), client.KeyPrefix())
 	entry := urlcache.Entry{LongURL: "https://example.com/cached-destination"}
