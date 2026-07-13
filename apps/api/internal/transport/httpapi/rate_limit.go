@@ -2,10 +2,9 @@ package httpapi
 
 import (
 	"context"
-	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/ratelimit"
@@ -21,11 +20,11 @@ type RequestRateLimiter interface {
 	Allow(ctx context.Context, clientKey string) (ratelimit.Result, error)
 }
 
-func RateLimit(limiter RequestRateLimiter) func(http.Handler) http.Handler {
-	return rateLimit(limiter, time.Now)
+func RateLimit(limiter RequestRateLimiter, trustedProxies ...netip.Prefix) func(http.Handler) http.Handler {
+	return rateLimit(limiter, newClientIPResolver(trustedProxies), time.Now)
 }
 
-func rateLimit(limiter RequestRateLimiter, now func() time.Time) func(http.Handler) http.Handler {
+func rateLimit(limiter RequestRateLimiter, resolver clientIPResolver, now func() time.Time) func(http.Handler) http.Handler {
 	if now == nil {
 		now = time.Now
 	}
@@ -45,7 +44,7 @@ func rateLimit(limiter RequestRateLimiter, now func() time.Time) func(http.Handl
 				return
 			}
 
-			result, err := limiter.Allow(r.Context(), remoteClientKey(r))
+			result, err := limiter.Allow(r.Context(), resolver.resolve(r))
 			if err != nil {
 				writeError(w, http.StatusServiceUnavailable, "rate_limit_unavailable", "unable to evaluate request rate limit")
 				return
@@ -69,20 +68,6 @@ func shouldBypassRateLimit(r *http.Request) bool {
 	}
 
 	return r.Method == http.MethodOptions || r.URL.Path == "/healthz" || r.URL.Path == "/readyz"
-}
-
-func remoteClientKey(r *http.Request) string {
-	if r == nil {
-		return ""
-	}
-
-	address := strings.TrimSpace(r.RemoteAddr)
-	host, _, err := net.SplitHostPort(address)
-	if err == nil {
-		return host
-	}
-
-	return address
 }
 
 func setRateLimitHeaders(w http.ResponseWriter, result ratelimit.Result) {

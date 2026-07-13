@@ -82,6 +82,7 @@ func run(ctx context.Context) error {
 		"requests", cfg.RateLimit.Requests,
 		"window", cfg.RateLimit.Window,
 		"enabled", cfg.RateLimit.Requests > 0,
+		"trusted_proxy_cidrs", len(cfg.HTTP.TrustedProxyCIDRs),
 	)
 
 	urlCreator, err := service.New(
@@ -125,7 +126,7 @@ func run(ctx context.Context) error {
 		URLRedirector:      urlRedirector,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
 	})
-	handler = httpapi.RateLimit(requestLimiter)(handler)
+	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
 	handler = httpserver.SecurityHeaders(handler)
 	handler = httpserver.Timeout(cfg.RequestTimeout)(handler)

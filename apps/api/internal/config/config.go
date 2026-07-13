@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -37,9 +38,10 @@ type Config struct {
 }
 
 type HTTPConfig struct {
-	Addr           string
-	BaseURL        string
-	AllowedOrigins []string
+	Addr              string
+	BaseURL           string
+	AllowedOrigins    []string
+	TrustedProxyCIDRs []netip.Prefix
 }
 
 type MongoDBConfig struct {
@@ -115,12 +117,18 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	trustedProxyCIDRs, err := prefixListValue(lookup, "TRUSTED_PROXY_CIDRS")
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
-			Addr:           value(lookup, "HTTP_ADDR", ":8080"),
-			BaseURL:        trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
-			AllowedOrigins: listValue(lookup, "CORS_ALLOWED_ORIGINS"),
+			Addr:              value(lookup, "HTTP_ADDR", ":8080"),
+			BaseURL:           trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
+			AllowedOrigins:    listValue(lookup, "CORS_ALLOWED_ORIGINS"),
+			TrustedProxyCIDRs: trustedProxyCIDRs,
 		},
 		MongoDB: MongoDBConfig{
 			URI:                  value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
@@ -253,6 +261,22 @@ func listValue(lookup func(string) (string, bool), key string) []string {
 	}
 
 	return values
+}
+
+func prefixListValue(lookup func(string) (string, bool), key string) ([]netip.Prefix, error) {
+	values := listValue(lookup, key)
+	prefixes := make([]netip.Prefix, 0, len(values))
+
+	for _, value := range values {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s contains invalid CIDR %q", key, value)
+		}
+
+		prefixes = append(prefixes, prefix.Masked())
+	}
+
+	return prefixes, nil
 }
 
 func intValue(lookup func(string) (string, bool), key string, fallback int) (int, error) {
