@@ -103,7 +103,7 @@ Every API response also includes a server-generated `X-Request-ID` header. Use i
 
 When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. Exceeded requests return `429 Too Many Requests` with `Retry-After`. Health checks, readiness checks, and CORS preflights do not consume quota.
 
-Clients are identified from the direct socket address. Forwarded IP headers are intentionally ignored until trusted proxy ranges are explicitly configured, preventing clients from bypassing limits with spoofed headers.
+Clients are identified from the direct socket address by default. When `TRUSTED_PROXY_CIDRS` is configured, `X-Forwarded-For` is accepted only from a trusted socket peer and the proxy chain is evaluated from right to left, preventing clients from bypassing limits with spoofed values.
 
 ### Create a Short URL
 
@@ -265,6 +265,7 @@ curl -i http://localhost:8080/readyz
 | `HTTP_ADDR` | `:8080` | HTTP bind address |
 | `BASE_URL` | `http://localhost:8080` | Validated public base URL reserved for future generated-link presentation |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated HTTP(S) origins allowed to call the API from browsers |
+| `TRUSTED_PROXY_CIDRS` | empty | Comma-separated proxy CIDRs allowed to supply `X-Forwarded-For` client addresses |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
