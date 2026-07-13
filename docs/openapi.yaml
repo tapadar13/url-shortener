@@ -43,10 +43,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/ShortCodeTaken'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
-          $ref: '#/components/responses/ShortCodeUnavailable'
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
   /shorten/{shortCode}:
@@ -62,8 +64,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
     put:
@@ -82,8 +88,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
     delete:
@@ -95,12 +105,22 @@ paths:
           headers:
             X-Request-ID:
               $ref: '#/components/headers/RequestID'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
   /shorten/{shortCode}/stats:
@@ -116,8 +136,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
   /{shortCode}:
@@ -140,8 +164,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
 components:
@@ -162,6 +190,26 @@ components:
       schema:
         type: string
         pattern: '^[a-f0-9]{32}$'
+    RateLimitLimit:
+      description: Maximum requests allowed in the current fixed window.
+      schema:
+        type: integer
+        minimum: 1
+    RateLimitRemaining:
+      description: Requests remaining in the current fixed window.
+      schema:
+        type: integer
+        minimum: 0
+    RateLimitReset:
+      description: Unix timestamp when the current fixed window resets.
+      schema:
+        type: integer
+        format: int64
+    RetryAfter:
+      description: Seconds until the client may retry after exceeding the limit.
+      schema:
+        type: integer
+        minimum: 1
   responses:
     Health:
       description: API process is running.
@@ -190,6 +238,12 @@ components:
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
       content:
         application/json:
           schema:
@@ -199,6 +253,12 @@ components:
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
       content:
         application/json:
           schema:
@@ -208,6 +268,12 @@ components:
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
       content:
         application/json:
           schema:
@@ -223,6 +289,12 @@ components:
             format: uri
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
     BadRequest:
       description: Invalid request JSON, URL, short code, or expiration.
       $ref: '#/components/responses/ErrorResponse'
@@ -232,8 +304,8 @@ components:
     NotReady:
       description: A required service dependency is unavailable.
       $ref: '#/components/responses/ErrorResponse'
-    ShortCodeUnavailable:
-      description: The service could not generate a unique short code within the configured retry limit.
+    ServiceUnavailable:
+      description: A request dependency is unavailable or a unique generated code could not be allocated.
       $ref: '#/components/responses/ErrorResponse'
     ShortCodeTaken:
       description: The requested custom short code already exists.
@@ -241,6 +313,23 @@ components:
     RequestTimeout:
       description: A downstream operation exceeded the configured request deadline.
       $ref: '#/components/responses/ErrorResponse'
+    RateLimitExceeded:
+      description: The client exceeded its request quota for the current fixed window.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalError:
       description: Unexpected server failure.
       $ref: '#/components/responses/ErrorResponse'
@@ -249,6 +338,12 @@ components:
       headers:
         X-Request-ID:
           $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
       content:
         application/json:
           schema:
