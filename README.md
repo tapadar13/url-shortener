@@ -11,7 +11,7 @@ apps/
   api/    Go HTTP API and MongoDB persistence
   web/    Next.js marketing frontend
 deploy/
-  docker-compose.yml    Local MongoDB service
+  docker-compose.yml    Local API, MongoDB, and Redis stack
 ```
 
 ## Current Features
@@ -20,12 +20,13 @@ deploy/
 - URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Distributed fixed-window request rate limiting with atomic MongoDB counters
+- Optional Redis redirect cache with bounded asynchronous access recording
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
-- Graceful API shutdown and MongoDB connection lifecycle management
+- Graceful API shutdown with MongoDB, Redis, and access-recorder lifecycle management
 
 ## Prerequisites
 
@@ -41,11 +42,13 @@ Create a local environment file:
 cp .env.example .env
 ```
 
-Start only MongoDB for local Go API development:
+Start MongoDB and Redis for local Go API development:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d mongodb
+docker compose -f deploy/docker-compose.yml up -d mongodb redis
 ```
+
+Set `REDIRECT_CACHE_ENABLED=true` in `.env` to exercise Redis-backed redirects when running the Go API directly. The complete containerized stack enables caching automatically.
 
 Run the API:
 
@@ -80,7 +83,7 @@ Run `make help` from the repository root to list local development commands.
 ```bash
 make api-check
 make web-check
-make mongo-up
+make data-up
 make stack-up
 ```
 
@@ -298,14 +301,16 @@ go test ./...
 go vet ./...
 ```
 
-Run MongoDB integration tests against an explicitly configured local MongoDB instance:
+Run MongoDB and Redis integration tests against explicitly configured local services:
 
 ```bash
-make mongo-up
-MONGODB_INTEGRATION_URI=mongodb://localhost:27017 make api-integration
+make data-up
+MONGODB_INTEGRATION_URI=mongodb://localhost:27017 \
+REDIS_INTEGRATION_URL=redis://localhost:6379/0 \
+make api-integration
 ```
 
-Integration tests create a unique temporary database and remove it after each run.
+Integration tests create isolated MongoDB databases and Redis key namespaces, then remove their data after each run.
 
 Run the frontend checks:
 
