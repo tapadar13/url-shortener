@@ -195,6 +195,14 @@ func TestURLRepositoryRejectsDuplicateShortCode(t *testing.T) {
 func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mongo.Collection) {
 	t.Helper()
 
+	client := newIntegrationMongoClient(t)
+	collection := client.URLsCollection()
+	return urlrepository.New(collection), collection
+}
+
+func newIntegrationMongoClient(t *testing.T) *mongodb.Client {
+	t.Helper()
+
 	uri := os.Getenv("MONGODB_INTEGRATION_URI")
 	if uri == "" {
 		t.Skip("set MONGODB_INTEGRATION_URI to run MongoDB integration tests")
@@ -205,9 +213,10 @@ func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mong
 	defer cancel()
 
 	client, err := mongodb.Connect(ctx, config.MongoDBConfig{
-		URI:            uri,
-		Database:       database,
-		URLsCollection: "urls",
+		URI:                  uri,
+		Database:             database,
+		URLsCollection:       "urls",
+		RateLimitsCollection: "rate_limits",
 	}, integrationTimeout)
 	if err != nil {
 		t.Fatalf("connect MongoDB: %v", err)
@@ -232,6 +241,5 @@ func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mong
 		t.Fatalf("ensure MongoDB indexes: %v", err)
 	}
 
-	collection := client.URLsCollection()
-	return urlrepository.New(collection), collection
+	return client
 }
