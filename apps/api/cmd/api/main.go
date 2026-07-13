@@ -107,7 +107,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("create URL update service: %w", err)
 	}
 
-	urlDeleter, err := service.NewDeleteService(urlRepository)
+	urlDeleter, err := service.NewDeleteService(urlRepository, service.DeleteOptions{})
 	if err != nil {
 		return fmt.Errorf("create URL delete service: %w", err)
 	}

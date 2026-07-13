@@ -14,12 +14,16 @@ type UpdateRepository interface {
 }
 
 type UpdateOptions struct {
-	Now func() time.Time
+	Cache        RedirectCacheInvalidator
+	OnCacheError func(error)
+	Now          func() time.Time
 }
 
 type UpdateService struct {
-	repository UpdateRepository
-	now        func() time.Time
+	repository   UpdateRepository
+	cache        RedirectCacheInvalidator
+	onCacheError func(error)
+	now          func() time.Time
 }
 
 type UpdateParams struct {
@@ -37,8 +41,10 @@ func NewUpdateService(repository UpdateRepository, options UpdateOptions) (*Upda
 	}
 
 	return &UpdateService{
-		repository: repository,
-		now:        options.Now,
+		repository:   repository,
+		cache:        options.Cache,
+		onCacheError: options.OnCacheError,
+		now:          options.Now,
 	}, nil
 }
 
@@ -69,6 +75,8 @@ func (s *UpdateService) UpdateLongURL(ctx context.Context, params UpdateParams) 
 	if err != nil {
 		return urlmodel.URL{}, fmt.Errorf("update URL: %w", err)
 	}
+
+	invalidateRedirectCache(ctx, s.cache, normalizedShortCode, s.onCacheError)
 
 	return updated, nil
 }
