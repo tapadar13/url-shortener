@@ -27,10 +27,12 @@ type AccessRecorderOptions struct {
 }
 
 type AsyncAccessRecorder struct {
-	repository AccessRepository
-	queue      chan urlmodel.RecordAccessParams
-	timeout    time.Duration
-	onError    func(error)
+	repository    AccessRepository
+	queue         chan urlmodel.RecordAccessParams
+	timeout       time.Duration
+	onError       func(error)
+	workerCtx     context.Context
+	cancelWorkers context.CancelFunc
 
 	mu        sync.RWMutex
 	closed    bool
@@ -56,12 +58,15 @@ func NewAsyncAccessRecorder(repository AccessRepository, options AccessRecorderO
 		return nil, ErrAccessTimeoutInvalid
 	}
 
+	workerCtx, cancel := context.WithCancel(context.Background())
 	recorder := &AsyncAccessRecorder{
-		repository: repository,
-		queue:      make(chan urlmodel.RecordAccessParams, options.QueueSize),
-		timeout:    options.Timeout,
-		onError:    options.OnError,
-		done:       make(chan struct{}),
+		repository:    repository,
+		queue:         make(chan urlmodel.RecordAccessParams, options.QueueSize),
+		timeout:       options.Timeout,
+		onError:       options.OnError,
+		workerCtx:     workerCtx,
+		cancelWorkers: cancel,
+		done:          make(chan struct{}),
 	}
 
 	recorder.workers.Add(options.Workers)
@@ -129,8 +134,11 @@ func (r *AsyncAccessRecorder) Close(ctx context.Context) error {
 
 	select {
 	case <-r.done:
+		r.cancelWorkers()
 		return nil
 	case <-ctx.Done():
+		r.cancelWorkers()
+		<-r.done
 		return fmt.Errorf("close access recorder: %w", ctx.Err())
 	}
 }
@@ -139,7 +147,11 @@ func (r *AsyncAccessRecorder) runWorker() {
 	defer r.workers.Done()
 
 	for params := range r.queue {
-		ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+		if r.workerCtx.Err() != nil {
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.workerCtx, r.timeout)
 		_, err := r.repository.RecordAccess(ctx, params)
 		cancel()
 
