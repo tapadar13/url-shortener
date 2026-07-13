@@ -101,6 +101,40 @@ func TestRepositoryIncrementWrapsDatabaseError(t *testing.T) {
 	}
 }
 
+func TestRepositoryIncrementRetriesConcurrentUpsertCollision(t *testing.T) {
+	t.Parallel()
+
+	duplicateErr := mongo.WriteException{
+		WriteErrors: mongo.WriteErrors{{Code: 11000, Message: "duplicate key error"}},
+	}
+	collection := &fakeCollection{
+		results: []*mongo.SingleResult{
+			mongo.NewSingleResultFromDocument(bson.D{}, duplicateErr, nil),
+			mongo.NewSingleResultFromDocument(counterDocument{Count: 2}, nil, nil),
+		},
+	}
+	repository := newRepository(collection)
+
+	count, err := repository.Increment(context.Background(), validIncrementParams())
+	if err != nil {
+		t.Fatalf("expected duplicate upsert to be retried: %v", err)
+	}
+
+	if count != 2 || collection.calls != 2 {
+		t.Fatalf("expected second increment result, got count=%d calls=%d", count, collection.calls)
+	}
+
+	firstOptions := findOneAndUpdateOptions(t, collection.optionSets[0])
+	if firstOptions.Upsert == nil || !*firstOptions.Upsert {
+		t.Fatalf("expected first operation to upsert, got %#v", firstOptions.Upsert)
+	}
+
+	secondOptions := findOneAndUpdateOptions(t, collection.optionSets[1])
+	if secondOptions.Upsert == nil || *secondOptions.Upsert {
+		t.Fatalf("expected retry not to upsert, got %#v", secondOptions.Upsert)
+	}
+}
+
 func assertCounterFilter(t *testing.T, value any, clientKey string, windowStart time.Time) {
 	t.Helper()
 
@@ -159,18 +193,28 @@ func validIncrementParams() ratelimit.IncrementParams {
 }
 
 type fakeCollection struct {
-	called  bool
-	filter  any
-	update  any
-	options []options.Lister[options.FindOneAndUpdateOptions]
-	result  *mongo.SingleResult
+	called     bool
+	calls      int
+	filter     any
+	update     any
+	options    []options.Lister[options.FindOneAndUpdateOptions]
+	optionSets [][]options.Lister[options.FindOneAndUpdateOptions]
+	result     *mongo.SingleResult
+	results    []*mongo.SingleResult
 }
 
 func (c *fakeCollection) FindOneAndUpdate(_ context.Context, filter any, update any, options ...options.Lister[options.FindOneAndUpdateOptions]) *mongo.SingleResult {
 	c.called = true
+	callIndex := c.calls
+	c.calls++
 	c.filter = filter
 	c.update = update
 	c.options = options
+	c.optionSets = append(c.optionSets, options)
+
+	if callIndex < len(c.results) {
+		return c.results[callIndex]
+	}
 
 	return c.result
 }
