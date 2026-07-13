@@ -65,28 +65,43 @@ func (r *Repository) Increment(ctx context.Context, params ratelimit.IncrementPa
 		return 0, ratelimit.ErrExpirationInvalid
 	}
 
-	result := r.collection.FindOneAndUpdate(
-		ctx,
-		bson.D{{Key: "_id", Value: counterID{
-			ClientKey:   clientKey,
-			WindowStart: bson.DateTime(windowStart.UnixMilli()),
-		}}},
-		bson.D{
-			{Key: "$inc", Value: bson.D{{Key: "count", Value: 1}}},
-			{Key: "$setOnInsert", Value: bson.D{{Key: "expires_at", Value: expiresAt}}},
-		},
-		options.FindOneAndUpdate().
-			SetUpsert(true).
-			SetReturnDocument(options.After),
-	)
-	if result == nil {
-		return 0, errors.New("increment rate limit counter: missing result")
+	filter := bson.D{{Key: "_id", Value: counterID{
+		ClientKey:   clientKey,
+		WindowStart: bson.DateTime(windowStart.UnixMilli()),
+	}}}
+	update := bson.D{
+		{Key: "$inc", Value: bson.D{{Key: "count", Value: 1}}},
+		{Key: "$setOnInsert", Value: bson.D{{Key: "expires_at", Value: expiresAt}}},
 	}
 
-	var document counterDocument
-	if err := result.Decode(&document); err != nil {
+	document, err := r.increment(ctx, filter, update, true)
+	if mongo.IsDuplicateKeyError(err) {
+		document, err = r.increment(ctx, filter, update, false)
+	}
+	if err != nil {
 		return 0, fmt.Errorf("increment rate limit counter: %w", err)
 	}
 
 	return document.Count, nil
+}
+
+func (r *Repository) increment(ctx context.Context, filter bson.D, update bson.D, upsert bool) (counterDocument, error) {
+	result := r.collection.FindOneAndUpdate(
+		ctx,
+		filter,
+		update,
+		options.FindOneAndUpdate().
+			SetUpsert(upsert).
+			SetReturnDocument(options.After),
+	)
+	if result == nil {
+		return counterDocument{}, errors.New("missing result")
+	}
+
+	var document counterDocument
+	if err := result.Decode(&document); err != nil {
+		return counterDocument{}, err
+	}
+
+	return document, nil
 }
