@@ -165,10 +165,11 @@ func TestAsyncAccessRecorderReportsWorkerErrors(t *testing.T) {
 func TestAsyncAccessRecorderCloseHonorsContext(t *testing.T) {
 	t.Parallel()
 
-	release := make(chan struct{})
+	finished := make(chan error, 1)
 	repository := &recordingAccessRepository{
-		started: make(chan struct{}, 1),
-		release: release,
+		started:        make(chan struct{}, 1),
+		finished:       finished,
+		waitForContext: true,
 	}
 	recorder := newTestAccessRecorder(t, repository, AccessRecorderOptions{
 		Workers:   1,
@@ -187,7 +188,15 @@ func TestAsyncAccessRecorderCloseHonorsContext(t *testing.T) {
 		t.Fatalf("expected close deadline error, got %v", err)
 	}
 
-	close(release)
+	select {
+	case err := <-finished:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected worker cancellation, got %v", err)
+		}
+	default:
+		t.Fatal("expected close to wait for worker cancellation")
+	}
+
 	closeTestAccessRecorder(t, recorder)
 }
 
@@ -254,6 +263,7 @@ type recordingAccessRepository struct {
 	calls          int
 	recorded       chan urlmodel.RecordAccessParams
 	started        chan struct{}
+	finished       chan error
 	release        chan struct{}
 	waitForContext bool
 }
@@ -265,6 +275,9 @@ func (r *recordingAccessRepository) RecordAccess(ctx context.Context, params url
 
 	if r.waitForContext {
 		<-ctx.Done()
+		if r.finished != nil {
+			r.finished <- ctx.Err()
+		}
 		return urlmodel.URL{}, ctx.Err()
 	}
 
