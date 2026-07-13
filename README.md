@@ -270,9 +270,14 @@ curl -i http://localhost:8080/readyz
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
 | `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL; `rediss://` enables TLS |
+| `REDIS_KEY_PREFIX` | `url-shortener` | Namespace prefix used for this service's Redis keys |
+| `REDIS_CONNECT_TIMEOUT` | `5s` | Maximum duration allowed for the initial Redis connection check |
 | `SHORT_CODE_LENGTH` | `7` | Generated Base62 short-code length, from 4 to 32 |
 | `SHORT_CODE_MAX_RETRIES` | `5` | Maximum attempts after a unique-index collision |
 | `REDIRECT_STATUS` | `302` | Redirect status: `301`, `302`, `307`, or `308` |
+| `REDIRECT_CACHE_ENABLED` | `false` | Enables Redis-backed redirect caching |
+| `REDIRECT_CACHE_TTL` | `10m` | Maximum lifetime of a cached redirect destination |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
