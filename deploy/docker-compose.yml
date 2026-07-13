@@ -10,6 +10,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -19,9 +21,17 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DATABASE: url_shortener
       MONGODB_URLS_COLLECTION: urls
+      REDIS_URL: redis://redis:6379/0
+      REDIS_KEY_PREFIX: url-shortener
+      REDIS_CONNECT_TIMEOUT: 5s
       SHORT_CODE_LENGTH: 7
       SHORT_CODE_MAX_RETRIES: 5
       REDIRECT_STATUS: 302
+      REDIRECT_CACHE_ENABLED: "true"
+      REDIRECT_CACHE_TTL: 10m
+      REDIRECT_CACHE_ACCESS_WORKERS: 2
+      REDIRECT_CACHE_ACCESS_QUEUE_SIZE: 1024
+      REDIRECT_CACHE_ACCESS_TIMEOUT: 5s
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
@@ -43,6 +53,20 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: url-shortener-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 volumes:
   mongodb_data:
