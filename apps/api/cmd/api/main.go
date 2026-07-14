@@ -75,6 +75,11 @@ func run(ctx context.Context) error {
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
 	rateLimitRepository := ratelimitrepository.New(mongoClient.RateLimitsCollection())
 	analyticsRepository := analyticsrepository.New(mongoClient.AnalyticsCollection())
+	analyticsReporter, err := analytics.NewReporter(analyticsRepository, analytics.ReporterOptions{})
+	if err != nil {
+		return fmt.Errorf("create click analytics reporter: %w", err)
+	}
+
 	analyticsRecorder, err := analytics.NewAsyncRecorder(analyticsRepository, analytics.AsyncRecorderOptions{
 		Workers:   cfg.Analytics.Workers,
 		QueueSize: cfg.Analytics.QueueSize,
@@ -102,6 +107,7 @@ func run(ctx context.Context) error {
 		"workers", cfg.Analytics.Workers,
 		"queue_size", cfg.Analytics.QueueSize,
 		"write_timeout", cfg.Analytics.WriteTimeout,
+		"max_report_range_days", analytics.DefaultMaxRangeDays,
 	)
 
 	updateOptions := service.UpdateOptions{}
@@ -229,6 +235,7 @@ func run(ctx context.Context) error {
 		URLUpdater:         urlUpdater,
 		URLDeleter:         urlDeleter,
 		URLRedirector:      urlRedirector,
+		AnalyticsReporter:  analyticsReporter,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
