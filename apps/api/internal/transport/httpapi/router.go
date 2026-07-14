@@ -59,6 +59,9 @@ func NewRouter(dependencies Dependencies) http.Handler {
 
 	router.Get("/healthz", handleHealth)
 	router.Get("/readyz", newReadinessHandler(dependencies.ReadinessChecker))
+	if dependencies.Metrics != nil {
+		router.Get("/metrics", newMetricsHandler(dependencies.Metrics))
+	}
 
 	if dependencies.URLCreator != nil {
 		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))

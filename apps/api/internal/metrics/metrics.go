@@ -1,8 +1,11 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,7 +67,37 @@ func (m *Metrics) Snapshot() []RequestMetric {
 	for _, metric := range m.requests {
 		result = append(result, *metric)
 	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Method != result[j].Method {
+			return result[i].Method < result[j].Method
+		}
+		if result[i].Route != result[j].Route {
+			return result[i].Route < result[j].Route
+		}
+		return result[i].Status < result[j].Status
+	})
 	return result
+}
+
+// Prometheus renders the current measurements in Prometheus text format.
+func (m *Metrics) Prometheus() string {
+	var output strings.Builder
+	output.WriteString("# HELP url_shortener_http_requests_total Total HTTP requests by route and status class.\n")
+	output.WriteString("# TYPE url_shortener_http_requests_total counter\n")
+	output.WriteString("# HELP url_shortener_http_request_duration_seconds_sum Total HTTP request duration in seconds.\n")
+	output.WriteString("# TYPE url_shortener_http_request_duration_seconds_sum counter\n")
+	for _, metric := range m.Snapshot() {
+		labels := fmt.Sprintf("method=\"%s\",route=\"%s\",status_class=\"%sx\"", escapeLabel(metric.Method), escapeLabel(metric.Route), metric.Status)
+		fmt.Fprintf(&output, "url_shortener_http_requests_total{%s} %d\n", labels, metric.Requests)
+		fmt.Fprintf(&output, "url_shortener_http_request_duration_seconds_sum{%s} %.9f\n", labels, float64(metric.DurationNanos)/1e9)
+	}
+	return output.String()
+}
+
+func escapeLabel(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"`, `\"`)
+	return strings.ReplaceAll(value, "\n", `\n`)
 }
 
 func Middleware(m *Metrics) func(http.Handler) http.Handler {
