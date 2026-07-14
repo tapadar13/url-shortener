@@ -51,6 +51,7 @@ type MongoDBConfig struct {
 	Database             string
 	URLsCollection       string
 	RateLimitsCollection string
+	AnalyticsCollection  string
 }
 
 type RedisConfig struct {
@@ -181,6 +182,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			Database:             value(lookup, "MONGODB_DATABASE", "url_shortener"),
 			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
 			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
+			AnalyticsCollection:  value(lookup, "MONGODB_ANALYTICS_COLLECTION", "click_analytics"),
 		},
 		Redis: RedisConfig{
 			URL:            value(lookup, "REDIS_URL", "redis://localhost:6379/0"),
@@ -255,6 +257,10 @@ func (cfg Config) Validate() error {
 
 	if strings.TrimSpace(cfg.MongoDB.RateLimitsCollection) == "" {
 		errs = append(errs, errors.New("MONGODB_RATE_LIMITS_COLLECTION is required"))
+	}
+
+	if strings.TrimSpace(cfg.MongoDB.AnalyticsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_ANALYTICS_COLLECTION is required"))
 	}
 
 	if !isRedisURL(cfg.Redis.URL) {
