@@ -115,6 +115,108 @@ func TestRedirectServiceReturnsRepositoryError(t *testing.T) {
 	}
 }
 
+func TestRedirectServiceQueuesAnalyticsAfterDatabaseRedirect(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	analyticsRecorder := &fakeAnalyticsEnqueuer{}
+	service, err := NewRedirectService(&fakeAccessRepository{record: urlmodel.URL{
+		LongURL:   "https://example.com/database",
+		ShortCode: "AbC123",
+	}}, RedirectOptions{
+		Analytics: analyticsRecorder,
+		Now:       func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("expected redirect service: %v", err)
+	}
+
+	if _, err := service.Resolve(context.Background(), " AbC123 "); err != nil {
+		t.Fatalf("expected database redirect: %v", err)
+	}
+
+	if analyticsRecorder.calls != 1 || analyticsRecorder.shortCode != "AbC123" || !analyticsRecorder.clickedAt.Equal(now) {
+		t.Fatalf("expected one analytics click, got %+v", analyticsRecorder)
+	}
+}
+
+func TestRedirectServiceQueuesAnalyticsAfterCachedRedirect(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	analyticsRecorder := &fakeAnalyticsEnqueuer{}
+	service, err := NewRedirectService(&fakeAccessRepository{}, RedirectOptions{
+		Cache:     &fakeRedirectCache{entry: urlcache.Entry{LongURL: "https://example.com/cached"}},
+		CacheTTL:  time.Minute,
+		Recorder:  &fakeAccessEnqueuer{},
+		Analytics: analyticsRecorder,
+		Now:       func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("expected cached redirect service: %v", err)
+	}
+
+	if _, err := service.Resolve(context.Background(), "AbC123"); err != nil {
+		t.Fatalf("expected cached redirect: %v", err)
+	}
+
+	if analyticsRecorder.calls != 1 || analyticsRecorder.shortCode != "AbC123" || !analyticsRecorder.clickedAt.Equal(now) {
+		t.Fatalf("expected one analytics click, got %+v", analyticsRecorder)
+	}
+}
+
+func TestRedirectServiceFailsOpenWhenAnalyticsQueueRejectsClick(t *testing.T) {
+	t.Parallel()
+
+	analyticsErr := errors.New("analytics queue full")
+	reported := make(chan error, 1)
+	service, err := NewRedirectService(&fakeAccessRepository{record: urlmodel.URL{
+		LongURL:   "https://example.com/database",
+		ShortCode: "AbC123",
+	}}, RedirectOptions{
+		Analytics: &fakeAnalyticsEnqueuer{err: analyticsErr},
+		OnAnalyticsError: func(err error) {
+			reported <- err
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected redirect service: %v", err)
+	}
+
+	if _, err := service.Resolve(context.Background(), "AbC123"); err != nil {
+		t.Fatalf("expected redirect despite analytics error: %v", err)
+	}
+
+	select {
+	case err := <-reported:
+		if !errors.Is(err, analyticsErr) {
+			t.Fatalf("expected reported analytics error, got %v", err)
+		}
+	default:
+		t.Fatal("expected analytics error to be reported")
+	}
+}
+
+func TestRedirectServiceSkipsAnalyticsWhenRedirectFails(t *testing.T) {
+	t.Parallel()
+
+	analyticsRecorder := &fakeAnalyticsEnqueuer{}
+	service, err := NewRedirectService(&fakeAccessRepository{err: errors.New("database unavailable")}, RedirectOptions{
+		Analytics: analyticsRecorder,
+	})
+	if err != nil {
+		t.Fatalf("expected redirect service: %v", err)
+	}
+
+	if _, err := service.Resolve(context.Background(), "AbC123"); err == nil {
+		t.Fatal("expected redirect error")
+	}
+
+	if analyticsRecorder.calls != 0 {
+		t.Fatalf("expected no analytics click, got %d", analyticsRecorder.calls)
+	}
+}
+
 func TestRedirectServiceReturnsCacheHitAndQueuesAccess(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +446,20 @@ type fakeAccessEnqueuer struct {
 	shortCode  string
 	accessedAt time.Time
 	err        error
+}
+
+type fakeAnalyticsEnqueuer struct {
+	calls     int
+	shortCode string
+	clickedAt time.Time
+	err       error
+}
+
+func (r *fakeAnalyticsEnqueuer) Enqueue(shortCode string, clickedAt time.Time) error {
+	r.calls++
+	r.shortCode = shortCode
+	r.clickedAt = clickedAt
+	return r.err
 }
 
 func (r *fakeAccessEnqueuer) Enqueue(shortCode string, accessedAt time.Time) error {
