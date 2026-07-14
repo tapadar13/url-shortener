@@ -11,10 +11,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
+
+func TestRouterRecordsRequestMetrics(t *testing.T) {
+	requestMetrics := metrics.New()
+	router := NewRouter(Dependencies{Metrics: requestMetrics})
+
+	response := executeRequestWithBody(t, router, http.MethodGet, "/healthz", "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected health check to succeed, got %d", response.StatusCode)
+	}
+
+	snapshot := requestMetrics.Snapshot()
+	if len(snapshot) != 1 || snapshot[0].Route != "/healthz" || snapshot[0].Status != "2" {
+		t.Fatalf("unexpected request metrics: %+v", snapshot)
+	}
+}
 
 func TestRouterHandlesHealthCheck(t *testing.T) {
 	t.Parallel()
