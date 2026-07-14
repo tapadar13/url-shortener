@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
@@ -29,6 +31,10 @@ type URLRedirector interface {
 	Resolve(ctx context.Context, shortCode string) (urlmodel.URL, error)
 }
 
+type URLAnalyticsReporter interface {
+	Get(ctx context.Context, rangeValue analytics.Range) (analytics.Report, error)
+}
+
 type Dependencies struct {
 	ReadinessChecker   ReadinessChecker
 	URLCreator         URLCreator
@@ -36,6 +42,8 @@ type Dependencies struct {
 	URLUpdater         URLUpdater
 	URLDeleter         URLDeleter
 	URLRedirector      URLRedirector
+	AnalyticsReporter  URLAnalyticsReporter
+	AnalyticsNow       func() time.Time
 	RedirectStatusCode int
 }
 
@@ -52,6 +60,13 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	if dependencies.URLFinder != nil {
+		if dependencies.AnalyticsReporter != nil {
+			router.Get("/shorten/{shortCode}/analytics", newGetURLAnalyticsHandler(
+				dependencies.URLFinder,
+				dependencies.AnalyticsReporter,
+				dependencies.AnalyticsNow,
+			))
+		}
 		router.Get("/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
 		router.Get("/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
 	}

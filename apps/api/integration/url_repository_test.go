@@ -217,6 +217,7 @@ func newIntegrationMongoClient(t *testing.T) *mongodb.Client {
 		Database:             database,
 		URLsCollection:       "urls",
 		RateLimitsCollection: "rate_limits",
+		AnalyticsCollection:  "click_analytics",
 	}, integrationTimeout)
 	if err != nil {
 		t.Fatalf("connect MongoDB: %v", err)

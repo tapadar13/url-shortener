@@ -2,7 +2,7 @@
 
 A production-minded URL shortening service with a Go + MongoDB API and a Next.js marketing frontend.
 
-The API creates short links, manages destinations, returns link statistics, and redirects visitors while atomically recording access counts.
+The API creates short links, manages destinations, returns link statistics and daily analytics, and redirects visitors while recording access counts.
 
 ## Project Layout
 
@@ -21,12 +21,13 @@ deploy/
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Distributed fixed-window request rate limiting with atomic MongoDB counters
 - Optional Redis redirect cache with bounded asynchronous access recording
+- Daily UTC click analytics backed by atomic MongoDB aggregates and bounded asynchronous recording
 - Configurable short-link redirects with atomic access counting
 - Strict URL and short-code validation
 - Consistent JSON error responses
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
-- Graceful API shutdown with MongoDB, Redis, and access-recorder lifecycle management
+- Graceful API shutdown with MongoDB, Redis, access-recorder, and analytics-recorder lifecycle management
 
 ## Prerequisites
 
@@ -216,13 +217,41 @@ Successful response: `200 OK`
 curl -i http://localhost:8080/shorten/AbC1234/stats
 ```
 
+### Retrieve Daily Click Analytics
+
+```http
+GET /shorten/{shortCode}/analytics?from=2026-07-10&to=2026-07-12
+```
+
+Successful response: `200 OK`
+
+```json
+{
+  "shortCode": "AbC1234",
+  "from": "2026-07-10",
+  "to": "2026-07-12",
+  "totalClicks": 12,
+  "daily": [
+    {"date": "2026-07-10", "clicks": 5},
+    {"date": "2026-07-11", "clicks": 0},
+    {"date": "2026-07-12", "clicks": 7}
+  ]
+}
+```
+
+```bash
+curl -i 'http://localhost:8080/shorten/AbC1234/analytics?from=2026-07-10&to=2026-07-12'
+```
+
+`from` and `to` are inclusive UTC dates. Omit them to request the latest 30 days; custom ranges cannot exceed 90 days or include future dates. Missing days are returned with zero clicks for direct charting. Analytics and cached access-count writes use independent queues, so daily totals may briefly differ from the all-time `accessCount` returned by the statistics endpoint.
+
 ### Redirect from a Short URL
 
 ```http
 GET /{shortCode}
 ```
 
-The API responds with the configured redirect status (`302` by default), sets `Location` to the original destination, and atomically increments `accessCount` before returning the redirect.
+The API responds with the configured redirect status (`302` by default), sets `Location` to the original destination, and records `accessCount` with an atomic MongoDB update. Redis cache hits queue that update asynchronously to keep redirect latency low.
 
 ```bash
 curl -i http://localhost:8080/AbC1234
@@ -247,11 +276,11 @@ curl -i http://localhost:8080/readyz
 
 | Status | Meaning |
 | --- | --- |
-| `200` | Successful retrieval, update, or statistics response |
+| `200` | Successful retrieval, update, statistics, or analytics response |
 | `201` | Short URL created |
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
-| `400` | Invalid JSON, URL, short code, or expiration |
+| `400` | Invalid JSON, URL, short code, expiration, or analytics date range |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
 | `409` | Requested custom short code is already taken |
@@ -273,6 +302,7 @@ curl -i http://localhost:8080/readyz
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
 | `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
+| `MONGODB_ANALYTICS_COLLECTION` | `click_analytics` | Collection containing per-link UTC daily click aggregates |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL; `rediss://` enables TLS |
 | `REDIS_KEY_PREFIX` | `url-shortener` | Namespace prefix used for this service's Redis keys |
 | `REDIS_CONNECT_TIMEOUT` | `5s` | Maximum duration allowed for the initial Redis connection check |
@@ -284,6 +314,9 @@ curl -i http://localhost:8080/readyz
 | `REDIRECT_CACHE_ACCESS_WORKERS` | `2` | Background workers that persist access counts from cache hits |
 | `REDIRECT_CACHE_ACCESS_QUEUE_SIZE` | `1024` | Maximum cache-hit access events buffered in memory |
 | `REDIRECT_CACHE_ACCESS_TIMEOUT` | `5s` | MongoDB deadline for each queued access update |
+| `ANALYTICS_WORKERS` | `2` | Background workers that persist daily click analytics |
+| `ANALYTICS_QUEUE_SIZE` | `4096` | Maximum click events buffered for asynchronous analytics writes |
+| `ANALYTICS_WRITE_TIMEOUT` | `5s` | MongoDB deadline for each queued analytics update |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
@@ -310,7 +343,7 @@ REDIS_INTEGRATION_URL=redis://localhost:6379/0 \
 make api-integration
 ```
 
-Integration tests create isolated MongoDB databases and Redis key namespaces, then remove their data after each run.
+Integration tests create isolated MongoDB databases and Redis key namespaces, exercise concurrent analytics aggregation and reporting, then remove their data after each run.
 
 Run the frontend checks:
 

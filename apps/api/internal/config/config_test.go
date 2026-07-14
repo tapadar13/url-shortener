@@ -43,6 +43,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.MongoDB.AnalyticsCollection != "click_analytics" {
+		t.Fatalf("expected default analytics collection, got %q", cfg.MongoDB.AnalyticsCollection)
+	}
+
 	if cfg.Redis.URL != "redis://localhost:6379/0" || cfg.Redis.KeyPrefix != "url-shortener" || cfg.Redis.ConnectTimeout != 5*time.Second {
 		t.Fatalf("expected default Redis config, got %+v", cfg.Redis)
 	}
@@ -67,6 +71,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default rate limit config, got %+v", cfg.RateLimit)
 	}
 
+	if cfg.Analytics.Workers != 2 || cfg.Analytics.QueueSize != 4096 || cfg.Analytics.WriteTimeout != 5*time.Second {
+		t.Fatalf("expected default analytics config, got %+v", cfg.Analytics)
+	}
+
 	if cfg.RequestTimeout != 10*time.Second {
 		t.Fatalf("expected default request timeout 10s, got %s", cfg.RequestTimeout)
 	}
@@ -85,6 +93,7 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"MONGODB_DATABASE":                 "links",
 		"MONGODB_URLS_COLLECTION":          "short_urls",
 		"MONGODB_RATE_LIMITS_COLLECTION":   "limits",
+		"MONGODB_ANALYTICS_COLLECTION":     "daily_clicks",
 		"REDIS_URL":                        "rediss://cache-user:secret@redis.example.com:6380/2",
 		"REDIS_KEY_PREFIX":                 "shortener-production",
 		"REDIS_CONNECT_TIMEOUT":            "2s",
@@ -96,6 +105,9 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS":    "4",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "2048",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "3s",
+		"ANALYTICS_WORKERS":                "4",
+		"ANALYTICS_QUEUE_SIZE":             "8192",
+		"ANALYTICS_WRITE_TIMEOUT":          "2s",
 		"RATE_LIMIT_REQUESTS":              "120",
 		"RATE_LIMIT_WINDOW":                "5m",
 		"LOG_LEVEL":                        LogLevelWarn,
@@ -139,6 +151,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected overridden rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.MongoDB.AnalyticsCollection != "daily_clicks" {
+		t.Fatalf("expected overridden analytics collection, got %q", cfg.MongoDB.AnalyticsCollection)
+	}
+
 	if cfg.Redis.URL != "rediss://cache-user:secret@redis.example.com:6380/2" || cfg.Redis.KeyPrefix != "shortener-production" || cfg.Redis.ConnectTimeout != 2*time.Second {
 		t.Fatalf("expected overridden Redis config, got %+v", cfg.Redis)
 	}
@@ -163,6 +179,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected overridden rate limit config, got %+v", cfg.RateLimit)
 	}
 
+	if cfg.Analytics.Workers != 4 || cfg.Analytics.QueueSize != 8192 || cfg.Analytics.WriteTimeout != 2*time.Second {
+		t.Fatalf("expected overridden analytics config, got %+v", cfg.Analytics)
+	}
+
 	if cfg.Log.Level != LogLevelWarn || cfg.Log.Format != LogFormatJSON {
 		t.Fatalf("expected overridden log config, got %+v", cfg.Log)
 	}
@@ -184,6 +204,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE":                 " ",
 		"MONGODB_URLS_COLLECTION":          " ",
 		"MONGODB_RATE_LIMITS_COLLECTION":   " ",
+		"MONGODB_ANALYTICS_COLLECTION":     " ",
 		"REDIS_URL":                        "https://redis.example.com",
 		"REDIS_KEY_PREFIX":                 " ",
 		"REDIS_CONNECT_TIMEOUT":            "0s",
@@ -194,6 +215,9 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS":    "65",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "100001",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "0s",
+		"ANALYTICS_WORKERS":                "65",
+		"ANALYTICS_QUEUE_SIZE":             "100001",
+		"ANALYTICS_WRITE_TIMEOUT":          "0s",
 		"RATE_LIMIT_REQUESTS":              "-1",
 		"RATE_LIMIT_WINDOW":                "0s",
 		"LOG_LEVEL":                        "trace",
@@ -219,6 +243,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE",
 		"MONGODB_URLS_COLLECTION",
 		"MONGODB_RATE_LIMITS_COLLECTION",
+		"MONGODB_ANALYTICS_COLLECTION",
 		"REDIS_URL",
 		"REDIS_KEY_PREFIX",
 		"REDIS_CONNECT_TIMEOUT",
@@ -229,6 +254,9 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT",
+		"ANALYTICS_WORKERS",
+		"ANALYTICS_QUEUE_SIZE",
+		"ANALYTICS_WRITE_TIMEOUT",
 		"RATE_LIMIT_REQUESTS",
 		"RATE_LIMIT_WINDOW",
 		"LOG_LEVEL",
@@ -305,5 +333,30 @@ func TestLoadFromMapRejectsUnparseableRedirectCacheWorkers(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "REDIRECT_CACHE_ACCESS_WORKERS must be an integer") {
 		t.Fatalf("expected invalid access workers error, got %q", err.Error())
+	}
+}
+
+func TestLoadFromMapRejectsUnparseableAnalyticsValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{name: "workers", key: "ANALYTICS_WORKERS", value: "many"},
+		{name: "queue size", key: "ANALYTICS_QUEUE_SIZE", value: "large"},
+		{name: "write timeout", key: "ANALYTICS_WRITE_TIMEOUT", value: "slow"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := LoadFromMap(map[string]string{tt.key: tt.value})
+			if err == nil || !strings.Contains(err.Error(), tt.key) {
+				t.Fatalf("expected parsing error to include %s, got %v", tt.key, err)
+			}
+		})
 	}
 }

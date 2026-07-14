@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 )
 
 func TestConnectRejectsInvalidTimeout(t *testing.T) {
@@ -81,5 +82,34 @@ func TestNilClientAccessorsReturnNil(t *testing.T) {
 
 	if client.RateLimitsCollection() != nil {
 		t.Fatal("expected nil rate limits collection")
+	}
+
+	if client.AnalyticsCollection() != nil {
+		t.Fatal("expected nil analytics collection")
+	}
+}
+
+func TestClientReturnsConfiguredCollections(t *testing.T) {
+	t.Parallel()
+
+	urlsCollection := new(mongo.Collection)
+	rateLimitsCollection := new(mongo.Collection)
+	analyticsCollection := new(mongo.Collection)
+	client := &Client{
+		urlsCollection:       urlsCollection,
+		rateLimitsCollection: rateLimitsCollection,
+		analyticsCollection:  analyticsCollection,
+	}
+
+	if client.URLsCollection() != urlsCollection {
+		t.Fatal("expected configured URLs collection")
+	}
+
+	if client.RateLimitsCollection() != rateLimitsCollection {
+		t.Fatal("expected configured rate limits collection")
+	}
+
+	if client.AnalyticsCollection() != analyticsCollection {
+		t.Fatal("expected configured analytics collection")
 	}
 }
