@@ -22,12 +22,12 @@ interface AuthDialogProps {
 
 const copy = {
   "log-in": {
-    title: "Accounts are almost here",
-    description: `${siteConfig.name} is being built in the open, and sign-in ships in the next phase alongside the link workspace. Nothing to log into just yet — but the Go API and data model behind it are already taking shape.`,
+    title: "Your workspace is almost ready",
+    description: `${siteConfig.name} is being built in the open, with account access arriving alongside the live link workspace. The Go service and data model underneath are already in place; the calm, focused experience comes next.`,
   },
   "get-started": {
-    title: "You're early — in a good way",
-    description: `${siteConfig.name} is being built in the open. Account creation and the link workspace connect to the API in the next phase. Until then, the engineering is public: follow the repository to watch it come together.`,
+    title: "You found Relay early",
+    description: `${siteConfig.name} is being built in the open. Account creation and the live workspace connect to the API in the next phase. Until then, follow the public repository and see every thoughtful layer come together.`,
   },
 } as const
 
@@ -37,7 +37,8 @@ export function AuthDialog({ intent, children }: AuthDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 p-6 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl sm:max-w-md">
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brand" />
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="text-pretty">
