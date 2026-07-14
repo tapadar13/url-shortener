@@ -243,7 +243,7 @@ Successful response: `200 OK`
 curl -i 'http://localhost:8080/shorten/AbC1234/analytics?from=2026-07-10&to=2026-07-12'
 ```
 
-`from` and `to` are inclusive UTC dates. Omit them to request the latest 30 days; custom ranges cannot exceed 90 days or include future dates. Missing days are returned with zero clicks for direct charting. Analytics writes are asynchronous and may briefly lag the all-time `accessCount` returned by the statistics endpoint.
+`from` and `to` are inclusive UTC dates. Omit them to request the latest 30 days; custom ranges cannot exceed 90 days or include future dates. Missing days are returned with zero clicks for direct charting. Analytics and cached access-count writes use independent queues, so daily totals may briefly differ from the all-time `accessCount` returned by the statistics endpoint.
 
 ### Redirect from a Short URL
 
@@ -251,7 +251,7 @@ curl -i 'http://localhost:8080/shorten/AbC1234/analytics?from=2026-07-10&to=2026
 GET /{shortCode}
 ```
 
-The API responds with the configured redirect status (`302` by default), sets `Location` to the original destination, and atomically increments `accessCount` before returning the redirect.
+The API responds with the configured redirect status (`302` by default), sets `Location` to the original destination, and records `accessCount` with an atomic MongoDB update. Redis cache hits queue that update asynchronously to keep redirect latency low.
 
 ```bash
 curl -i http://localhost:8080/AbC1234
