@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	urlcache "github.com/tapadar13/url-shortener/apps/api/internal/url/cache"
@@ -25,20 +26,24 @@ type AccessEnqueuer interface {
 }
 
 type RedirectOptions struct {
-	Cache        urlcache.Store
-	CacheTTL     time.Duration
-	Recorder     AccessEnqueuer
-	OnCacheError func(error)
-	Now          func() time.Time
+	Cache            urlcache.Store
+	CacheTTL         time.Duration
+	Recorder         AccessEnqueuer
+	OnCacheError     func(error)
+	Analytics        analytics.Enqueuer
+	OnAnalyticsError func(error)
+	Now              func() time.Time
 }
 
 type RedirectService struct {
-	repository   AccessRepository
-	cache        urlcache.Store
-	cacheTTL     time.Duration
-	recorder     AccessEnqueuer
-	onCacheError func(error)
-	now          func() time.Time
+	repository       AccessRepository
+	cache            urlcache.Store
+	cacheTTL         time.Duration
+	recorder         AccessEnqueuer
+	onCacheError     func(error)
+	analytics        analytics.Enqueuer
+	onAnalyticsError func(error)
+	now              func() time.Time
 }
 
 func NewRedirectService(repository AccessRepository, options RedirectOptions) (*RedirectService, error) {
@@ -63,12 +68,14 @@ func NewRedirectService(repository AccessRepository, options RedirectOptions) (*
 	}
 
 	return &RedirectService{
-		repository:   repository,
-		cache:        options.Cache,
-		cacheTTL:     options.CacheTTL,
-		recorder:     options.Recorder,
-		onCacheError: options.OnCacheError,
-		now:          options.Now,
+		repository:       repository,
+		cache:            options.Cache,
+		cacheTTL:         options.CacheTTL,
+		recorder:         options.Recorder,
+		onCacheError:     options.OnCacheError,
+		analytics:        options.Analytics,
+		onAnalyticsError: options.OnAnalyticsError,
+		now:              options.Now,
 	}, nil
 }
 
@@ -91,13 +98,21 @@ func (s *RedirectService) Resolve(ctx context.Context, shortCode string) (urlmod
 		entry, cacheErr := s.cache.Get(ctx, normalizedShortCode)
 		if cacheErr == nil {
 			if err := s.recorder.Enqueue(normalizedShortCode, accessedAt); err == nil {
-				return urlmodel.URL{
+				resolved := urlmodel.URL{
 					LongURL:   entry.LongURL,
 					ShortCode: normalizedShortCode,
-				}, nil
+				}
+				s.recordAnalytics(normalizedShortCode, accessedAt)
+				return resolved, nil
 			}
 
-			return s.recordAccess(ctx, normalizedShortCode, accessedAt)
+			recorded, err := s.recordAccess(ctx, normalizedShortCode, accessedAt)
+			if err != nil {
+				return urlmodel.URL{}, err
+			}
+
+			s.recordAnalytics(normalizedShortCode, accessedAt)
+			return recorded, nil
 		}
 
 		if !errors.Is(cacheErr, urlcache.ErrMiss) {
@@ -118,6 +133,7 @@ func (s *RedirectService) Resolve(ctx context.Context, shortCode string) (urlmod
 		}
 	}
 
+	s.recordAnalytics(normalizedShortCode, accessedAt)
 	return recorded, nil
 }
 
@@ -136,6 +152,16 @@ func (s *RedirectService) recordAccess(ctx context.Context, shortCode string, ac
 func (s *RedirectService) reportCacheError(err error) {
 	if s.onCacheError != nil {
 		s.onCacheError(err)
+	}
+}
+
+func (s *RedirectService) recordAnalytics(shortCode string, clickedAt time.Time) {
+	if s.analytics == nil {
+		return
+	}
+
+	if err := s.analytics.Enqueue(shortCode, clickedAt); err != nil && s.onAnalyticsError != nil {
+		s.onAnalyticsError(fmt.Errorf("enqueue click analytics: %w", err))
 	}
 }
 
