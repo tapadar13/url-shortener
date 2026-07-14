@@ -244,6 +244,7 @@ func run(ctx context.Context) error {
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
 	handler = httpserver.SecurityHeaders(handler)
 	handler = httpserver.Timeout(cfg.RequestTimeout)(handler)
+	handler = httpserver.MaxRequestBody(cfg.MaxRequestBodyBytes)(handler)
 	handler = httpapi.Recovery(logger)(handler)
 	handler = httpserver.RequestLogger(logger)(handler)
 	handler = httpserver.RequestID(handler)

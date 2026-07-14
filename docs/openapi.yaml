@@ -53,6 +53,8 @@ paths:
           $ref: '#/components/responses/URLCreated'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '409':
           $ref: '#/components/responses/ShortCodeTaken'
         '429':
@@ -74,6 +76,8 @@ paths:
           $ref: '#/components/responses/URLResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
@@ -267,6 +271,12 @@ components:
         type: integer
         minimum: 1
   responses:
+    RequestEntityTooLarge:
+      description: Request body exceeds the configured maximum size
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     Health:
       description: API process is running.
       headers:

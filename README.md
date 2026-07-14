@@ -297,6 +297,7 @@ curl -i http://localhost:8080/metrics
 | `204` | Short URL deleted |
 | `302`, `301`, `307`, `308` | Redirect response, controlled by `REDIRECT_STATUS` |
 | `400` | Invalid JSON, URL, short code, expiration, or analytics date range |
+| `413` | Request body exceeds `MAX_REQUEST_BODY_BYTES` |
 | `404` | Missing short URL or unknown route |
 | `405` | Unsupported HTTP method |
 | `409` | Requested custom short code is already taken |
@@ -338,6 +339,7 @@ curl -i http://localhost:8080/metrics
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
 | `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |
+| `MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum request body size, from 1 byte to 10 MiB |
 | `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown deadline |
 
 ## Verification

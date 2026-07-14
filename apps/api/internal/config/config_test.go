@@ -78,6 +78,9 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 	if cfg.RequestTimeout != 10*time.Second {
 		t.Fatalf("expected default request timeout 10s, got %s", cfg.RequestTimeout)
 	}
+	if cfg.MaxRequestBodyBytes != 1<<20 {
+		t.Fatalf("expected default request body limit 1 MiB, got %d", cfg.MaxRequestBodyBytes)
+	}
 }
 
 func TestLoadFromMapAppliesOverrides(t *testing.T) {
@@ -114,6 +117,7 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"LOG_FORMAT":                       LogFormatJSON,
 		"REQUEST_TIMEOUT":                  "3s",
 		"SHUTDOWN_TIMEOUT":                 "15s",
+		"MAX_REQUEST_BODY_BYTES":           "2097152",
 	})
 	if err != nil {
 		t.Fatalf("expected overrides to be valid: %v", err)
@@ -189,6 +193,18 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 
 	if cfg.RequestTimeout != 3*time.Second || cfg.ShutdownTimeout != 15*time.Second {
 		t.Fatalf("expected overridden timeouts, got request=%s shutdown=%s", cfg.RequestTimeout, cfg.ShutdownTimeout)
+	}
+	if cfg.MaxRequestBodyBytes != 2<<20 {
+		t.Fatalf("expected overridden request body limit 2 MiB, got %d", cfg.MaxRequestBodyBytes)
+	}
+}
+
+func TestLoadFromMapRejectsInvalidRequestBodyLimit(t *testing.T) {
+	t.Parallel()
+
+	_, err := LoadFromMap(map[string]string{"MAX_REQUEST_BODY_BYTES": "0"})
+	if err == nil || !strings.Contains(err.Error(), "MAX_REQUEST_BODY_BYTES") {
+		t.Fatalf("expected invalid request body limit error, got %v", err)
 	}
 }
 

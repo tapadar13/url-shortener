@@ -14,8 +14,6 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
 
-const maxURLRequestBodyBytes = 1 << 20
-
 const defaultRedirectStatusCode = http.StatusFound
 
 type createURLRequest struct {
@@ -52,6 +50,10 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request createURLRequest
 		if err := decodeURLRequest(w, r, &request); err != nil {
+			if isRequestBodyTooLarge(err) {
+				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
+				return
+			}
 			writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
 			return
 		}
@@ -74,6 +76,10 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request updateURLRequest
 		if err := decodeURLRequest(w, r, &request); err != nil {
+			if isRequestBodyTooLarge(err) {
+				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
+				return
+			}
 			writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
 			return
 		}
@@ -167,8 +173,7 @@ func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
 	}
 }
 
-func decodeURLRequest(w http.ResponseWriter, r *http.Request, request any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxURLRequestBodyBytes)
+func decodeURLRequest(_ http.ResponseWriter, r *http.Request, request any) error {
 	defer r.Body.Close()
 
 	decoder := json.NewDecoder(r.Body)
@@ -183,6 +188,11 @@ func decodeURLRequest(w http.ResponseWriter, r *http.Request, request any) error
 	}
 
 	return nil
+}
+
+func isRequestBodyTooLarge(err error) bool {
+	var maxBytesError *http.MaxBytesError
+	return errors.As(err, &maxBytesError)
 }
 
 func writeCreateURLError(w http.ResponseWriter, err error) {
