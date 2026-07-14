@@ -1,5 +1,6 @@
-import { ArrowRight, ArrowUpRight, Github } from "lucide-react"
+import { ArrowRight, ArrowUpRight } from "lucide-react"
 
+import { GithubMark } from "@/components/icons"
 import { AuthDialog } from "@/components/landing/auth-dialog"
 import { Reveal } from "@/components/landing/reveal"
 import { Button } from "@/components/ui/button"
@@ -30,7 +31,7 @@ export function FinalCta() {
               </AuthDialog>
               <Button variant="outline" className="h-12 rounded-2xl border-foreground/20 bg-transparent px-5 text-foreground hover:bg-foreground/8" asChild>
                 <a href={siteConfig.repoUrl} target="_blank" rel="noreferrer">
-                  <Github aria-hidden="true" />GitHub<ArrowUpRight data-icon="inline-end" aria-hidden="true" />
+                  <GithubMark aria-hidden="true" />GitHub<ArrowUpRight data-icon="inline-end" aria-hidden="true" />
                 </a>
               </Button>
             </div>

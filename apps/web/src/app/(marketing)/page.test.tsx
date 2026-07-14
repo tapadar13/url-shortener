@@ -17,10 +17,10 @@ describe("landing page", () => {
       screen.getByRole("heading", { level: 1, name: siteConfig.tagline })
     ).toBeDefined()
     expect(
-      screen.getAllByRole("button", { name: "Get started" }).length
+      screen.getAllByRole("button", { name: "Create your first link" }).length
     ).toBeGreaterThan(0)
     expect(
-      screen.getByRole("link", { name: "Explore the platform" })
+      screen.getByRole("link", { name: "See how it flows" })
     ).toBeDefined()
   })
 

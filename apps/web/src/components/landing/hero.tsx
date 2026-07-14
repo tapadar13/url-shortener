@@ -1,6 +1,7 @@
-import { ArrowDown, ArrowRight, ArrowUpRight, Github } from "lucide-react"
+import { ArrowDown, ArrowRight, ArrowUpRight } from "lucide-react"
 
 import { AnchorLink } from "@/components/anchor-link"
+import { GithubMark } from "@/components/icons"
 import { AuthDialog } from "@/components/landing/auth-dialog"
 import { ProductPreview } from "@/components/landing/product-preview"
 import { Button } from "@/components/ui/button"
@@ -25,7 +26,7 @@ export function Hero() {
             className="animate-fade-up group inline-flex items-center gap-2.5 rounded-full border border-foreground/10 bg-card/70 py-1.5 pl-2 pr-3 text-xs font-medium text-muted-foreground shadow-[0_8px_30px_-20px_rgb(20_24_16/0.55)] backdrop-blur-md transition-all hover:-translate-y-0.5 hover:border-foreground/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <span className="flex size-5 items-center justify-center rounded-full bg-foreground text-brand">
-              <Github className="size-3" aria-hidden="true" />
+              <GithubMark className="size-3" aria-hidden="true" />
             </span>
             Open-source. Built for control.
             <ArrowUpRight className="size-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" aria-hidden="true" />
