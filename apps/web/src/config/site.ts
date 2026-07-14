@@ -4,17 +4,17 @@
  */
 export const siteConfig = {
   name: "Relay",
-  tagline: "Short links. Clearer signals.",
+  tagline: "One link. Total clarity.",
   description:
-    "Relay turns long URLs into short links you can trust. Change where a link points at any time, and see exactly how often it's opened — all from one focused workspace.",
+    "Relay is the focused link workspace for creating clean short URLs, changing destinations without breaking links, and seeing every visit — without the enterprise bloat.",
   /** Display-only short domain used in product mockups. */
   shortHost: "rly.to",
   url: "http://localhost:3000",
   repoUrl: "https://github.com/tapadar13/url-shortener",
   nav: [
     { label: "Product", href: "#product" },
-    { label: "How it works", href: "#how-it-works" },
-    { label: "Architecture", href: "#architecture" },
+    { label: "How it flows", href: "#how-it-works" },
+    { label: "Built different", href: "#architecture" },
   ],
 } as const
 
