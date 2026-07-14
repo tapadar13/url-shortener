@@ -39,6 +39,21 @@ func TestRateLimitIndexModels(t *testing.T) {
 	assertTTLIndexOptions(t, models[0].Options, RateLimitExpirationIndexName)
 }
 
+func TestAnalyticsIndexModels(t *testing.T) {
+	t.Parallel()
+
+	models := AnalyticsIndexModels()
+	if len(models) != 1 {
+		t.Fatalf("expected 1 index model, got %d", len(models))
+	}
+
+	assertIndexKeys(t, models[0].Keys, bson.D{
+		{Key: "short_code", Value: 1},
+		{Key: "day_start", Value: 1},
+	})
+	assertIndexOptions(t, models[0].Options, AnalyticsDailyIndexName, true)
+}
+
 func TestEnsureIndexesRejectsNilClient(t *testing.T) {
 	t.Parallel()
 
