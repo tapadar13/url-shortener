@@ -15,6 +15,7 @@ const (
 	CreatedAtIndexName           = "idx_urls_created_at"
 	ExpirationIndexName          = "ttl_urls_expires_at"
 	RateLimitExpirationIndexName = "ttl_rate_limits_expires_at"
+	AnalyticsDailyIndexName      = "uniq_analytics_short_code_day_start"
 )
 
 func EnsureIndexes(ctx context.Context, client *Client) error {
@@ -40,7 +41,30 @@ func EnsureIndexes(ctx context.Context, client *Client) error {
 		return fmt.Errorf("create rate limit indexes: %w", err)
 	}
 
+	analyticsCollection := client.AnalyticsCollection()
+	if analyticsCollection == nil {
+		return errors.New("analytics collection is required")
+	}
+
+	if _, err := analyticsCollection.Indexes().CreateMany(ctx, AnalyticsIndexModels()); err != nil {
+		return fmt.Errorf("create analytics indexes: %w", err)
+	}
+
 	return nil
+}
+
+func AnalyticsIndexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
+		{
+			Keys: bson.D{
+				{Key: "short_code", Value: 1},
+				{Key: "day_start", Value: 1},
+			},
+			Options: options.Index().
+				SetName(AnalyticsDailyIndexName).
+				SetUnique(true),
+		},
+	}
 }
 
 func RateLimitIndexModels() []mongo.IndexModel {
