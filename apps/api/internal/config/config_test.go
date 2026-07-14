@@ -71,6 +71,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default rate limit config, got %+v", cfg.RateLimit)
 	}
 
+	if cfg.Analytics.Workers != 2 || cfg.Analytics.QueueSize != 4096 || cfg.Analytics.WriteTimeout != 5*time.Second {
+		t.Fatalf("expected default analytics config, got %+v", cfg.Analytics)
+	}
+
 	if cfg.RequestTimeout != 10*time.Second {
 		t.Fatalf("expected default request timeout 10s, got %s", cfg.RequestTimeout)
 	}
@@ -101,6 +105,9 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS":    "4",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "2048",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "3s",
+		"ANALYTICS_WORKERS":                "4",
+		"ANALYTICS_QUEUE_SIZE":             "8192",
+		"ANALYTICS_WRITE_TIMEOUT":          "2s",
 		"RATE_LIMIT_REQUESTS":              "120",
 		"RATE_LIMIT_WINDOW":                "5m",
 		"LOG_LEVEL":                        LogLevelWarn,
@@ -172,6 +179,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected overridden rate limit config, got %+v", cfg.RateLimit)
 	}
 
+	if cfg.Analytics.Workers != 4 || cfg.Analytics.QueueSize != 8192 || cfg.Analytics.WriteTimeout != 2*time.Second {
+		t.Fatalf("expected overridden analytics config, got %+v", cfg.Analytics)
+	}
+
 	if cfg.Log.Level != LogLevelWarn || cfg.Log.Format != LogFormatJSON {
 		t.Fatalf("expected overridden log config, got %+v", cfg.Log)
 	}
@@ -204,6 +215,9 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS":    "65",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE": "100001",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT":    "0s",
+		"ANALYTICS_WORKERS":                "65",
+		"ANALYTICS_QUEUE_SIZE":             "100001",
+		"ANALYTICS_WRITE_TIMEOUT":          "0s",
 		"RATE_LIMIT_REQUESTS":              "-1",
 		"RATE_LIMIT_WINDOW":                "0s",
 		"LOG_LEVEL":                        "trace",
@@ -240,6 +254,9 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"REDIRECT_CACHE_ACCESS_WORKERS",
 		"REDIRECT_CACHE_ACCESS_QUEUE_SIZE",
 		"REDIRECT_CACHE_ACCESS_TIMEOUT",
+		"ANALYTICS_WORKERS",
+		"ANALYTICS_QUEUE_SIZE",
+		"ANALYTICS_WRITE_TIMEOUT",
 		"RATE_LIMIT_REQUESTS",
 		"RATE_LIMIT_WINDOW",
 		"LOG_LEVEL",
@@ -316,5 +333,30 @@ func TestLoadFromMapRejectsUnparseableRedirectCacheWorkers(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "REDIRECT_CACHE_ACCESS_WORKERS must be an integer") {
 		t.Fatalf("expected invalid access workers error, got %q", err.Error())
+	}
+}
+
+func TestLoadFromMapRejectsUnparseableAnalyticsValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		key   string
+		value string
+	}{
+		{name: "workers", key: "ANALYTICS_WORKERS", value: "many"},
+		{name: "queue size", key: "ANALYTICS_QUEUE_SIZE", value: "large"},
+		{name: "write timeout", key: "ANALYTICS_WRITE_TIMEOUT", value: "slow"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := LoadFromMap(map[string]string{tt.key: tt.value})
+			if err == nil || !strings.Contains(err.Error(), tt.key) {
+				t.Fatalf("expected parsing error to include %s, got %v", tt.key, err)
+			}
+		})
 	}
 }
