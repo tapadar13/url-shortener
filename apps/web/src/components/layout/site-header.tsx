@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Menu } from "lucide-react"
+import { ArrowUpRight, Menu } from "lucide-react"
 
 import { AnchorLink } from "@/components/anchor-link"
 import { AuthDialog } from "@/components/landing/auth-dialog"
@@ -46,13 +46,13 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b transition-colors duration-200",
+        "sticky top-0 z-50 transition-all duration-500",
         scrolled
-          ? "border-border bg-background/85 backdrop-blur-md"
-          : "border-transparent bg-transparent"
+          ? "bg-background/78 shadow-[0_1px_0_rgb(30_34_24/0.08)] backdrop-blur-xl"
+          : "bg-transparent"
       )}
     >
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-[4.5rem] max-w-[78rem] items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href="/"
           className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
@@ -61,12 +61,12 @@ export function SiteHeader() {
           <Brand />
         </Link>
 
-        <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+        <nav aria-label="Main" className="hidden items-center rounded-full border border-foreground/8 bg-card/55 p-1 shadow-[0_8px_30px_-20px_rgb(20_24_16/0.5)] backdrop-blur-md md:flex">
           {siteConfig.nav.map((item) => (
             <AnchorLink
               key={item.href}
               href={item.href}
-              className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              className="rounded-full px-3.5 py-1.5 text-[0.8rem] font-medium text-muted-foreground transition-all outline-none hover:bg-background/75 hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {item.label}
             </AnchorLink>
@@ -75,10 +75,13 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <AuthDialog intent="log-in">
-            <Button variant="ghost">Log in</Button>
+            <Button variant="ghost" className="px-3.5">Log in</Button>
           </AuthDialog>
           <AuthDialog intent="get-started">
-            <Button>Get started</Button>
+            <Button className="h-9 px-4">
+              Get started
+              <ArrowUpRight data-icon="inline-end" aria-hidden="true" />
+            </Button>
           </AuthDialog>
         </div>
 
@@ -93,7 +96,7 @@ export function SiteHeader() {
               <Menu aria-hidden="true" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-72">
+          <SheetContent side="right" className="w-[88vw] max-w-sm bg-background/95 backdrop-blur-xl">
             <SheetHeader>
               <SheetTitle>
                 <Brand />
@@ -111,7 +114,7 @@ export function SiteHeader() {
                   key={item.href}
                   href={item.href}
                   onClick={(event) => handleMobileNav(event, item.href)}
-                  className="rounded-md px-2 py-2 text-sm font-medium text-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+                className="rounded-xl px-3 py-3 text-base font-medium text-foreground transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
                 >
                   {item.label}
                 </a>
