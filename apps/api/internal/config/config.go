@@ -26,18 +26,19 @@ const (
 )
 
 type Config struct {
-	Environment     string
-	HTTP            HTTPConfig
-	MongoDB         MongoDBConfig
-	Redis           RedisConfig
-	ShortCode       ShortCodeConfig
-	Redirect        RedirectConfig
-	RedirectCache   RedirectCacheConfig
-	Analytics       AnalyticsConfig
-	RateLimit       RateLimitConfig
-	Log             LogConfig
-	RequestTimeout  time.Duration
-	ShutdownTimeout time.Duration
+	Environment         string
+	HTTP                HTTPConfig
+	MongoDB             MongoDBConfig
+	Redis               RedisConfig
+	ShortCode           ShortCodeConfig
+	Redirect            RedirectConfig
+	RedirectCache       RedirectCacheConfig
+	Analytics           AnalyticsConfig
+	RateLimit           RateLimitConfig
+	Log                 LogConfig
+	RequestTimeout      time.Duration
+	ShutdownTimeout     time.Duration
+	MaxRequestBodyBytes int64
 }
 
 type HTTPConfig struct {
@@ -127,6 +128,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 	}
 
 	shutdownTimeout, err := durationValue(lookup, "SHUTDOWN_TIMEOUT", 10*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	maxRequestBodyBytes, err := intValue(lookup, "MAX_REQUEST_BODY_BYTES", 1<<20)
 	if err != nil {
 		return Config{}, err
 	}
@@ -238,8 +244,9 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
 			Format: value(lookup, "LOG_FORMAT", LogFormatText),
 		},
-		RequestTimeout:  requestTimeout,
-		ShutdownTimeout: shutdownTimeout,
+		RequestTimeout:      requestTimeout,
+		ShutdownTimeout:     shutdownTimeout,
+		MaxRequestBodyBytes: int64(maxRequestBodyBytes),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -364,6 +371,10 @@ func (cfg Config) Validate() error {
 
 	if cfg.ShutdownTimeout <= 0 {
 		errs = append(errs, errors.New("SHUTDOWN_TIMEOUT must be greater than zero"))
+	}
+
+	if cfg.MaxRequestBodyBytes < 1 || cfg.MaxRequestBodyBytes > 10<<20 {
+		errs = append(errs, errors.New("MAX_REQUEST_BODY_BYTES must be between 1 and 10485760"))
 	}
 
 	return errors.Join(errs...)
