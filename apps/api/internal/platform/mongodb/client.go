@@ -17,6 +17,7 @@ type Client struct {
 	database             *mongo.Database
 	urlsCollection       *mongo.Collection
 	rateLimitsCollection *mongo.Collection
+	analyticsCollection  *mongo.Collection
 }
 
 func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duration) (*Client, error) {
@@ -46,6 +47,7 @@ func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duratio
 		database:             database,
 		urlsCollection:       database.Collection(cfg.URLsCollection),
 		rateLimitsCollection: database.Collection(cfg.RateLimitsCollection),
+		analyticsCollection:  database.Collection(cfg.AnalyticsCollection),
 	}, nil
 }
 
@@ -99,4 +101,12 @@ func (c *Client) RateLimitsCollection() *mongo.Collection {
 	}
 
 	return c.rateLimitsCollection
+}
+
+func (c *Client) AnalyticsCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+
+	return c.analyticsCollection
 }
