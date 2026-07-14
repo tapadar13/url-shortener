@@ -40,6 +40,7 @@ services:
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
+      MAX_REQUEST_BODY_BYTES: 1048576
       SHUTDOWN_TIMEOUT: 10s
 
   mongodb:
