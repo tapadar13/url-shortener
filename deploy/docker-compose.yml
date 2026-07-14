@@ -21,6 +21,8 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DATABASE: url_shortener
       MONGODB_URLS_COLLECTION: urls
+      MONGODB_RATE_LIMITS_COLLECTION: rate_limits
+      MONGODB_ANALYTICS_COLLECTION: click_analytics
       REDIS_URL: redis://redis:6379/0
       REDIS_KEY_PREFIX: url-shortener
       REDIS_CONNECT_TIMEOUT: 5s
@@ -32,6 +34,9 @@ services:
       REDIRECT_CACHE_ACCESS_WORKERS: 2
       REDIRECT_CACHE_ACCESS_QUEUE_SIZE: 1024
       REDIRECT_CACHE_ACCESS_TIMEOUT: 5s
+      ANALYTICS_WORKERS: 2
+      ANALYTICS_QUEUE_SIZE: 4096
+      ANALYTICS_WRITE_TIMEOUT: 5s
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
