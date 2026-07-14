@@ -26,6 +26,18 @@ paths:
           $ref: '#/components/responses/Ready'
         '503':
           $ref: '#/components/responses/NotReady'
+  /metrics:
+    get:
+      summary: Retrieve Prometheus metrics
+      description: Operational request metrics in Prometheus text exposition format. Keep this endpoint behind deployment-level access controls.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
   /shorten:
     post:
       summary: Create a short URL
