@@ -43,6 +43,10 @@ func TestLoadFromMapUsesDefaults(t *testing.T) {
 		t.Fatalf("expected default rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.MongoDB.AnalyticsCollection != "click_analytics" {
+		t.Fatalf("expected default analytics collection, got %q", cfg.MongoDB.AnalyticsCollection)
+	}
+
 	if cfg.Redis.URL != "redis://localhost:6379/0" || cfg.Redis.KeyPrefix != "url-shortener" || cfg.Redis.ConnectTimeout != 5*time.Second {
 		t.Fatalf("expected default Redis config, got %+v", cfg.Redis)
 	}
@@ -85,6 +89,7 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"MONGODB_DATABASE":                 "links",
 		"MONGODB_URLS_COLLECTION":          "short_urls",
 		"MONGODB_RATE_LIMITS_COLLECTION":   "limits",
+		"MONGODB_ANALYTICS_COLLECTION":     "daily_clicks",
 		"REDIS_URL":                        "rediss://cache-user:secret@redis.example.com:6380/2",
 		"REDIS_KEY_PREFIX":                 "shortener-production",
 		"REDIS_CONNECT_TIMEOUT":            "2s",
@@ -139,6 +144,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		t.Fatalf("expected overridden rate limit collection, got %q", cfg.MongoDB.RateLimitsCollection)
 	}
 
+	if cfg.MongoDB.AnalyticsCollection != "daily_clicks" {
+		t.Fatalf("expected overridden analytics collection, got %q", cfg.MongoDB.AnalyticsCollection)
+	}
+
 	if cfg.Redis.URL != "rediss://cache-user:secret@redis.example.com:6380/2" || cfg.Redis.KeyPrefix != "shortener-production" || cfg.Redis.ConnectTimeout != 2*time.Second {
 		t.Fatalf("expected overridden Redis config, got %+v", cfg.Redis)
 	}
@@ -184,6 +193,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE":                 " ",
 		"MONGODB_URLS_COLLECTION":          " ",
 		"MONGODB_RATE_LIMITS_COLLECTION":   " ",
+		"MONGODB_ANALYTICS_COLLECTION":     " ",
 		"REDIS_URL":                        "https://redis.example.com",
 		"REDIS_KEY_PREFIX":                 " ",
 		"REDIS_CONNECT_TIMEOUT":            "0s",
@@ -219,6 +229,7 @@ func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 		"MONGODB_DATABASE",
 		"MONGODB_URLS_COLLECTION",
 		"MONGODB_RATE_LIMITS_COLLECTION",
+		"MONGODB_ANALYTICS_COLLECTION",
 		"REDIS_URL",
 		"REDIS_KEY_PREFIX",
 		"REDIS_CONNECT_TIMEOUT",
