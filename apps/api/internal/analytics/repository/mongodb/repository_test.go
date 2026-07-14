@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -112,6 +113,98 @@ func TestRepositoryRecordClickRetriesConcurrentUpsertCollision(t *testing.T) {
 	}
 }
 
+func TestRepositoryFindDailyClicksReturnsSortedRange(t *testing.T) {
+	t.Parallel()
+
+	firstDay := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	secondDay := firstDay.Add(24 * time.Hour)
+	cursor, err := mongo.NewCursorFromDocuments([]any{
+		dailyClicksDocument{DayStart: firstDay, ClickCount: 3},
+		dailyClicksDocument{DayStart: secondDay, ClickCount: 5},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create test cursor: %v", err)
+	}
+
+	collection := &fakeCollection{cursor: cursor}
+	repository := newRepository(collection)
+	daily, err := repository.FindDailyClicks(context.Background(), analytics.Range{
+		ShortCode:    " AbC123 ",
+		Start:        firstDay.Add(12 * time.Hour),
+		EndExclusive: firstDay.Add(72 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("expected analytics query to succeed: %v", err)
+	}
+
+	if len(daily) != 2 ||
+		!daily[0].DayStart.Equal(firstDay) || daily[0].Clicks != 3 ||
+		!daily[1].DayStart.Equal(secondDay) || daily[1].Clicks != 5 {
+		t.Fatalf("expected sorted daily analytics, got %+v", daily)
+	}
+
+	assertAnalyticsRangeFilter(t, collection.findFilter, "AbC123", firstDay, firstDay.Add(72*time.Hour))
+	assertAnalyticsFindOptions(t, collection.findOptions)
+}
+
+func TestRepositoryFindDailyClicksRejectsNilCollection(t *testing.T) {
+	t.Parallel()
+
+	_, err := New(nil).FindDailyClicks(context.Background(), validRange())
+	if err == nil || !strings.Contains(err.Error(), "collection") {
+		t.Fatalf("expected collection error, got %v", err)
+	}
+}
+
+func TestRepositoryFindDailyClicksValidatesRangeBeforeQuerying(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeCollection{}
+	_, err := newRepository(collection).FindDailyClicks(context.Background(), analytics.Range{ShortCode: "invalid-code"})
+	if !errors.Is(err, shortcode.ErrInvalidChars) {
+		t.Fatalf("expected short code error, got %v", err)
+	}
+
+	if collection.findCalled {
+		t.Fatal("expected collection not to be queried")
+	}
+}
+
+func TestRepositoryFindDailyClicksWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("database unavailable")
+	_, err := newRepository(&fakeCollection{findErr: expectedErr}).FindDailyClicks(context.Background(), validRange())
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected database error, got %v", err)
+	}
+}
+
+func TestRepositoryFindDailyClicksRejectsMissingCursor(t *testing.T) {
+	t.Parallel()
+
+	_, err := newRepository(&fakeCollection{}).FindDailyClicks(context.Background(), validRange())
+	if err == nil || !strings.Contains(err.Error(), "missing cursor") {
+		t.Fatalf("expected missing cursor error, got %v", err)
+	}
+}
+
+func TestRepositoryFindDailyClicksRejectsInvalidDocument(t *testing.T) {
+	t.Parallel()
+
+	cursor, err := mongo.NewCursorFromDocuments([]any{
+		dailyClicksDocument{DayStart: time.Now(), ClickCount: -1},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create test cursor: %v", err)
+	}
+
+	_, err = newRepository(&fakeCollection{cursor: cursor}).FindDailyClicks(context.Background(), validRange())
+	if !errors.Is(err, analytics.ErrNegativeClicks) {
+		t.Fatalf("expected invalid click count error, got %v", err)
+	}
+}
+
 func assertClickFilter(t *testing.T, value any, shortCode string, dayStart time.Time) {
 	t.Helper()
 
@@ -155,6 +248,56 @@ func assertSingleFieldUpdate(t *testing.T, element bson.E, operator string, fiel
 	}
 }
 
+func assertAnalyticsRangeFilter(t *testing.T, value any, shortCode string, start time.Time, endExclusive time.Time) {
+	t.Helper()
+
+	filter, ok := value.(bson.D)
+	if !ok || len(filter) != 2 {
+		t.Fatalf("expected short code and date range filter, got %#v", value)
+	}
+
+	if filter[0].Key != "short_code" || filter[0].Value != shortCode {
+		t.Fatalf("expected short code %q, got %#v", shortCode, filter[0])
+	}
+
+	rangeFilter, ok := filter[1].Value.(bson.D)
+	if filter[1].Key != "day_start" || !ok || len(rangeFilter) != 2 {
+		t.Fatalf("expected day start range, got %#v", filter[1])
+	}
+
+	if rangeFilter[0].Key != "$gte" || rangeFilter[0].Value != start ||
+		rangeFilter[1].Key != "$lt" || rangeFilter[1].Value != endExclusive {
+		t.Fatalf("expected range [%s, %s), got %#v", start, endExclusive, rangeFilter)
+	}
+}
+
+func assertAnalyticsFindOptions(t *testing.T, values []options.Lister[options.FindOptions]) {
+	t.Helper()
+
+	var result options.FindOptions
+	for _, value := range values {
+		for _, apply := range value.List() {
+			if err := apply(&result); err != nil {
+				t.Fatalf("expected valid find option: %v", err)
+			}
+		}
+	}
+
+	expectedProjection := bson.D{
+		{Key: "_id", Value: 0},
+		{Key: "day_start", Value: 1},
+		{Key: "click_count", Value: 1},
+	}
+	if projection, ok := result.Projection.(bson.D); !ok || !reflect.DeepEqual(projection, expectedProjection) {
+		t.Fatalf("expected analytics projection %#v, got %#v", expectedProjection, result.Projection)
+	}
+
+	expectedSort := bson.D{{Key: "day_start", Value: 1}}
+	if sort, ok := result.Sort.(bson.D); !ok || !reflect.DeepEqual(sort, expectedSort) {
+		t.Fatalf("expected day start sort %#v, got %#v", expectedSort, result.Sort)
+	}
+}
+
 func updateOneOptions(t *testing.T, values []options.Lister[options.UpdateOneOptions]) options.UpdateOneOptions {
 	t.Helper()
 
@@ -177,17 +320,38 @@ func validClick() analytics.Click {
 	}
 }
 
+func validRange() analytics.Range {
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	return analytics.Range{
+		ShortCode:    "AbC123",
+		Start:        start,
+		EndExclusive: start.Add(24 * time.Hour),
+	}
+}
+
 type fakeCollection struct {
-	called     bool
-	calls      int
-	filter     any
-	update     any
-	options    []options.Lister[options.UpdateOneOptions]
-	optionSets [][]options.Lister[options.UpdateOneOptions]
-	result     *mongo.UpdateResult
-	results    []*mongo.UpdateResult
-	err        error
-	errors     []error
+	called      bool
+	calls       int
+	filter      any
+	update      any
+	options     []options.Lister[options.UpdateOneOptions]
+	optionSets  [][]options.Lister[options.UpdateOneOptions]
+	result      *mongo.UpdateResult
+	results     []*mongo.UpdateResult
+	err         error
+	errors      []error
+	findCalled  bool
+	findFilter  any
+	findOptions []options.Lister[options.FindOptions]
+	cursor      *mongo.Cursor
+	findErr     error
+}
+
+func (c *fakeCollection) Find(_ context.Context, filter any, options ...options.Lister[options.FindOptions]) (*mongo.Cursor, error) {
+	c.findCalled = true
+	c.findFilter = filter
+	c.findOptions = options
+	return c.cursor, c.findErr
 }
 
 func (c *fakeCollection) UpdateOne(_ context.Context, filter any, update any, options ...options.Lister[options.UpdateOneOptions]) (*mongo.UpdateResult, error) {
