@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: URL Shortener API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Create and manage short URLs, retrieve link statistics, and redirect visitors
     while atomically recording accesses.
@@ -144,6 +144,32 @@ paths:
           $ref: '#/components/responses/ServiceUnavailable'
         '504':
           $ref: '#/components/responses/RequestTimeout'
+  /shorten/{shortCode}/analytics:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve daily click analytics
+      description: |
+        Returns a contiguous UTC daily click series for the requested inclusive date range.
+        The range defaults to the latest 30 days and cannot exceed 90 days. Click analytics
+        are recorded asynchronously and may briefly lag the all-time access count.
+      operationId: getShortURLAnalytics
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          $ref: '#/components/responses/URLAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
   /{shortCode}:
     parameters:
       - $ref: '#/components/parameters/ShortCode'
@@ -184,6 +210,22 @@ components:
         maxLength: 32
         pattern: '^[A-Za-z0-9]+$'
       description: Base62 short code. Reserved route names are rejected.
+    AnalyticsFrom:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: First UTC date to include. Defaults to 29 days before `to`, producing a 30-day range.
+    AnalyticsTo:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: Last UTC date to include. Defaults to the current UTC date and cannot be in the future.
   headers:
     RequestID:
       description: Server-generated identifier used to correlate a request with server logs.
@@ -278,6 +320,21 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/URLStats'
+    URLAnalyticsResponse:
+      description: Daily click analytics for the requested inclusive UTC date range.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URLAnalytics'
     Redirect:
       description: Redirect to the original URL. The returned status is selected by server configuration.
       headers:
@@ -422,6 +479,50 @@ components:
             lastAccessedAt:
               type: string
               format: date-time
+    URLAnalytics:
+      type: object
+      required:
+        - shortCode
+        - from
+        - to
+        - totalClicks
+        - daily
+      properties:
+        shortCode:
+          type: string
+        from:
+          type: string
+          format: date
+          description: First included UTC date.
+        to:
+          type: string
+          format: date
+          description: Last included UTC date.
+        totalClicks:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of daily clicks within the requested range.
+        daily:
+          type: array
+          minItems: 1
+          maxItems: 90
+          items:
+            $ref: '#/components/schemas/DailyClicks'
+    DailyClicks:
+      type: object
+      required:
+        - date
+        - clicks
+      properties:
+        date:
+          type: string
+          format: date
+          description: UTC calendar date.
+        clicks:
+          type: integer
+          format: int64
+          minimum: 0
     Probe:
       type: object
       required:
