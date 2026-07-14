@@ -27,6 +27,7 @@ deploy/
 - Consistent JSON error responses
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
+- Prometheus-compatible request metrics grouped by route and status class
 - Graceful API shutdown with MongoDB, Redis, access-recorder, and analytics-recorder lifecycle management
 
 ## Prerequisites
@@ -270,6 +271,21 @@ GET /readyz
 ```bash
 curl -i http://localhost:8080/healthz
 curl -i http://localhost:8080/readyz
+```
+
+### Metrics
+
+```http
+GET /metrics
+```
+
+The endpoint returns Prometheus text format with request totals and cumulative
+request duration grouped by HTTP method, registered route pattern, and status
+class. Keep this endpoint on an internal network or protect it at the reverse
+proxy when deploying publicly.
+
+```bash
+curl -i http://localhost:8080/metrics
 ```
 
 ### Status Codes
