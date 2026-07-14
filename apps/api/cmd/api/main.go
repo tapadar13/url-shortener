@@ -8,6 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
+	analyticsrepository "github.com/tapadar13/url-shortener/apps/api/internal/analytics/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
@@ -67,14 +69,49 @@ func run(ctx context.Context) error {
 	logger.Info("MongoDB indexes ready",
 		"urls_collection", cfg.MongoDB.URLsCollection,
 		"rate_limits_collection", cfg.MongoDB.RateLimitsCollection,
+		"analytics_collection", cfg.MongoDB.AnalyticsCollection,
 	)
 
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
 	rateLimitRepository := ratelimitrepository.New(mongoClient.RateLimitsCollection())
+	analyticsRepository := analyticsrepository.New(mongoClient.AnalyticsCollection())
+	analyticsRecorder, err := analytics.NewAsyncRecorder(analyticsRepository, analytics.AsyncRecorderOptions{
+		Workers:   cfg.Analytics.Workers,
+		QueueSize: cfg.Analytics.QueueSize,
+		Timeout:   cfg.Analytics.WriteTimeout,
+		OnError: func(err error) {
+			logger.Error("queued click analytics recording failed", "error", err)
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("create click analytics recorder: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+
+		if err := analyticsRecorder.Close(shutdownCtx); err != nil {
+			logger.Error("click analytics recorder shutdown failed", "error", err)
+			return
+		}
+
+		logger.Info("click analytics recorder stopped")
+	}()
+
+	logger.Info("click analytics configured",
+		"workers", cfg.Analytics.Workers,
+		"queue_size", cfg.Analytics.QueueSize,
+		"write_timeout", cfg.Analytics.WriteTimeout,
+	)
 
 	updateOptions := service.UpdateOptions{}
 	deleteOptions := service.DeleteOptions{}
-	redirectOptions := service.RedirectOptions{}
+	redirectOptions := service.RedirectOptions{
+		Analytics: analyticsRecorder,
+		OnAnalyticsError: func(err error) {
+			logger.Warn("click analytics enqueue failed", "error", err)
+		},
+	}
 
 	if cfg.RedirectCache.Enabled {
 		redisClient, err := redisplatform.Connect(ctx, cfg.Redis)
