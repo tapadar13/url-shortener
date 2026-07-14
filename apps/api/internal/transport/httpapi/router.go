@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
+	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
@@ -44,16 +45,23 @@ type Dependencies struct {
 	URLRedirector      URLRedirector
 	AnalyticsReporter  URLAnalyticsReporter
 	AnalyticsNow       func() time.Time
+	Metrics            *metrics.Metrics
 	RedirectStatusCode int
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
 	router := chi.NewRouter()
+	if dependencies.Metrics != nil {
+		router.Use(metrics.Middleware(dependencies.Metrics))
+	}
 	router.NotFound(handleNotFound)
 	router.MethodNotAllowed(handleMethodNotAllowed)
 
 	router.Get("/healthz", handleHealth)
 	router.Get("/readyz", newReadinessHandler(dependencies.ReadinessChecker))
+	if dependencies.Metrics != nil {
+		router.Get("/metrics", newMetricsHandler(dependencies.Metrics))
+	}
 
 	if dependencies.URLCreator != nil {
 		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))

@@ -11,10 +11,45 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
+
+func TestRouterRecordsRequestMetrics(t *testing.T) {
+	requestMetrics := metrics.New()
+	router := NewRouter(Dependencies{Metrics: requestMetrics})
+
+	response := executeRequestWithBody(t, router, http.MethodGet, "/healthz", "")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("expected health check to succeed, got %d", response.StatusCode)
+	}
+
+	snapshot := requestMetrics.Snapshot()
+	if len(snapshot) != 1 || snapshot[0].Route != "/healthz" || snapshot[0].Status != "2" {
+		t.Fatalf("unexpected request metrics: %+v", snapshot)
+	}
+}
+
+func TestRouterServesPrometheusMetrics(t *testing.T) {
+	requestMetrics := metrics.New()
+	requestMetrics.Observe(http.MethodGet, "/healthz", http.StatusOK, time.Second)
+	router := NewRouter(Dependencies{Metrics: requestMetrics})
+
+	response := executeRequestWithBody(t, router, http.MethodGet, "/metrics", "")
+	assertStatus(t, response, http.StatusOK)
+	if got := response.Header.Get("Content-Type"); got != "text/plain; version=0.0.4; charset=utf-8" {
+		t.Fatalf("unexpected metrics content type %q", got)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read metrics response: %v", err)
+	}
+	if !bytes.Contains(body, []byte(`url_shortener_http_requests_total{method="GET",route="/healthz",status_class="2x"} 1`)) {
+		t.Fatalf("expected Prometheus request metric, got %s", body)
+	}
+}
 
 func TestRouterHandlesHealthCheck(t *testing.T) {
 	t.Parallel()

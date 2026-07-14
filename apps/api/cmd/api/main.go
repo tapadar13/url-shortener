@@ -11,6 +11,7 @@ import (
 	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
 	analyticsrepository "github.com/tapadar13/url-shortener/apps/api/internal/analytics/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
+	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/logging"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/mongodb"
@@ -237,6 +238,7 @@ func run(ctx context.Context) error {
 		URLRedirector:      urlRedirector,
 		AnalyticsReporter:  analyticsReporter,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
+		Metrics:            metrics.New(),
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
