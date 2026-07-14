@@ -12,10 +12,22 @@ import (
 	"time"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
+	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
 	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
+
+func TestRouterReturnsPayloadTooLargeForOversizedCreateRequest(t *testing.T) {
+	creator := &fakeURLCreator{}
+	router := httpserver.MaxRequestBody(4)(NewRouter(Dependencies{URLCreator: creator}))
+
+	response := executeRequestWithBody(t, router, http.MethodPost, "/shorten", `{"url":"https://example.com"}`)
+	assertStatus(t, response, http.StatusRequestEntityTooLarge)
+	if len(creator.params) != 0 {
+		t.Fatal("expected oversized request to be rejected before URL creation")
+	}
+}
 
 func TestRouterRecordsRequestMetrics(t *testing.T) {
 	requestMetrics := metrics.New()
