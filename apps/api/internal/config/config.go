@@ -33,6 +33,7 @@ type Config struct {
 	ShortCode       ShortCodeConfig
 	Redirect        RedirectConfig
 	RedirectCache   RedirectCacheConfig
+	Analytics       AnalyticsConfig
 	RateLimit       RateLimitConfig
 	Log             LogConfig
 	RequestTimeout  time.Duration
@@ -75,6 +76,12 @@ type RedirectCacheConfig struct {
 	AccessWorkers   int
 	AccessQueueSize int
 	AccessTimeout   time.Duration
+}
+
+type AnalyticsConfig struct {
+	Workers      int
+	QueueSize    int
+	WriteTimeout time.Duration
 }
 
 type RateLimitConfig struct {
@@ -169,6 +176,21 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	analyticsWorkers, err := intValue(lookup, "ANALYTICS_WORKERS", 2)
+	if err != nil {
+		return Config{}, err
+	}
+
+	analyticsQueueSize, err := intValue(lookup, "ANALYTICS_QUEUE_SIZE", 4096)
+	if err != nil {
+		return Config{}, err
+	}
+
+	analyticsWriteTimeout, err := durationValue(lookup, "ANALYTICS_WRITE_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -202,6 +224,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			AccessWorkers:   redirectCacheAccessWorkers,
 			AccessQueueSize: redirectCacheAccessQueueSize,
 			AccessTimeout:   redirectCacheAccessTimeout,
+		},
+		Analytics: AnalyticsConfig{
+			Workers:      analyticsWorkers,
+			QueueSize:    analyticsQueueSize,
+			WriteTimeout: analyticsWriteTimeout,
 		},
 		RateLimit: RateLimitConfig{
 			Requests: rateLimitRequests,
@@ -301,6 +328,18 @@ func (cfg Config) Validate() error {
 
 	if cfg.RedirectCache.AccessTimeout <= 0 {
 		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_TIMEOUT must be greater than zero"))
+	}
+
+	if cfg.Analytics.Workers < 1 || cfg.Analytics.Workers > 64 {
+		errs = append(errs, errors.New("ANALYTICS_WORKERS must be between 1 and 64"))
+	}
+
+	if cfg.Analytics.QueueSize < 1 || cfg.Analytics.QueueSize > 100000 {
+		errs = append(errs, errors.New("ANALYTICS_QUEUE_SIZE must be between 1 and 100000"))
+	}
+
+	if cfg.Analytics.WriteTimeout <= 0 {
+		errs = append(errs, errors.New("ANALYTICS_WRITE_TIMEOUT must be greater than zero"))
 	}
 
 	if cfg.RateLimit.Requests < 0 {
