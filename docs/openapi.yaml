@@ -152,7 +152,7 @@ paths:
       description: |
         Returns a contiguous UTC daily click series for the requested inclusive date range.
         The range defaults to the latest 30 days and cannot exceed 90 days. Click analytics
-        are recorded asynchronously and may briefly lag the all-time access count.
+        and cached access counts are recorded asynchronously and may briefly differ.
       operationId: getShortURLAnalytics
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
@@ -175,7 +175,9 @@ paths:
       - $ref: '#/components/parameters/ShortCode'
     get:
       summary: Redirect to the original destination
-      description: Increments the access count atomically before returning the redirect.
+      description: |
+        Records the access count with an atomic MongoDB update. When redirect caching is enabled,
+        cache-hit access updates are queued asynchronously to keep redirect latency low.
       operationId: redirectShortURL
       responses:
         '301':
