@@ -77,6 +77,34 @@ paths:
         '413':
           $ref: '#/components/responses/RequestEntityTooLarge'
   /shorten:
+    get:
+      summary: List the authenticated user’s short URLs
+      operationId: listMyShortURLs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: User short URLs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/URL'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
     post:
       summary: Create a short URL
       operationId: createShortURL
@@ -255,6 +283,11 @@ paths:
         '504':
           $ref: '#/components/responses/RequestTimeout'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     ShortCode:
       name: shortCode
@@ -309,6 +342,12 @@ components:
         type: integer
         minimum: 1
   responses:
+    Unauthorized:
+      description: Authentication is required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     AuthSuccess:
       description: Authentication succeeded
       content:
