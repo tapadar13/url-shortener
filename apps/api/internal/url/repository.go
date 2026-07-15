@@ -16,7 +16,9 @@ type Repository interface {
 	FindByShortCode(ctx context.Context, shortCode string) (URL, error)
 	FindByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) (URL, error)
 	UpdateLongURL(ctx context.Context, params UpdateLongURLParams) (URL, error)
+	UpdateLongURLForOwner(ctx context.Context, params UpdateLongURLParams, ownerID string) (URL, error)
 	DeleteByShortCode(ctx context.Context, shortCode string) error
+	DeleteByShortCodeForOwner(ctx context.Context, shortCode, ownerID string) error
 	RecordAccess(ctx context.Context, params RecordAccessParams) (URL, error)
 }
 

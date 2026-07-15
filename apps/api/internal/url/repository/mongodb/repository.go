@@ -149,6 +149,14 @@ func (r *Repository) findByShortCode(ctx context.Context, shortCode, ownerID str
 }
 
 func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLongURLParams) (urlmodel.URL, error) {
+	return r.updateLongURL(ctx, params, "")
+}
+
+func (r *Repository) UpdateLongURLForOwner(ctx context.Context, params urlmodel.UpdateLongURLParams, ownerID string) (urlmodel.URL, error) {
+	return r.updateLongURL(ctx, params, ownerID)
+}
+
+func (r *Repository) updateLongURL(ctx context.Context, params urlmodel.UpdateLongURLParams, ownerID string) (urlmodel.URL, error) {
 	if r == nil || r.collection == nil {
 		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
 	}
@@ -168,9 +176,13 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 	}
 
 	updatedAt := params.UpdatedAt.UTC()
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
 	result := r.collection.FindOneAndUpdate(
 		ctx,
-		r.activeShortCodeFilter(normalizedShortCode),
+		filter,
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "url", Value: normalizedLongURL},
 			{Key: "updated_at", Value: updatedAt},
@@ -197,6 +209,14 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 }
 
 func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) error {
+	return r.deleteByShortCode(ctx, shortCode, "")
+}
+
+func (r *Repository) DeleteByShortCodeForOwner(ctx context.Context, shortCode, ownerID string) error {
+	return r.deleteByShortCode(ctx, shortCode, ownerID)
+}
+
+func (r *Repository) deleteByShortCode(ctx context.Context, shortCode, ownerID string) error {
 	if r == nil || r.collection == nil {
 		return errors.New("MongoDB URL collection is required")
 	}
@@ -206,7 +226,11 @@ func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) er
 		return err
 	}
 
-	result, err := r.collection.DeleteOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
+	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("delete URL by short code: %w", err)
 	}
