@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -43,10 +44,31 @@ func (i *fakeAccessTokenIssuer) Issue(string) (string, time.Time, error) {
 	return "signed-token", time.Date(2026, time.July, 15, 11, 0, 0, 0, time.UTC), nil
 }
 
+type fakeRefreshSessionManager struct {
+	session auth.Session
+	token   string
+	err     error
+}
+
+func (m *fakeRefreshSessionManager) Create(context.Context, string) (auth.Session, string, error) {
+	if m.err != nil {
+		return auth.Session{}, "", m.err
+	}
+	return m.session, m.token, nil
+}
+
+func (m *fakeRefreshSessionManager) Rotate(context.Context, string) (auth.Session, string, error) {
+	if m.err != nil {
+		return auth.Session{}, "", m.err
+	}
+	return m.session, m.token, nil
+}
+
 func TestRouterRegistersUserAndReturnsAccessToken(t *testing.T) {
 	router := NewRouter(Dependencies{
 		AuthService:       &fakeAuthService{user: UserAuthTestUser{ID: "user-1", Email: "user@example.com"}},
 		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+		RefreshSessions:   &fakeRefreshSessionManager{session: auth.Session{UserID: "user-1"}, token: "refresh-token"},
 	})
 	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/register", `{"email":"user@example.com","password":"correct horse battery staple"}`)
 	assertStatus(t, response, http.StatusCreated)
@@ -55,9 +77,37 @@ func TestRouterRegistersUserAndReturnsAccessToken(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode auth response: %v", err)
 	}
-	if body.AccessToken != "signed-token" || body.TokenType != "Bearer" || body.User.ID != "user-1" || body.User.Email != "user@example.com" {
+	if body.AccessToken != "signed-token" || body.RefreshToken != "refresh-token" || body.TokenType != "Bearer" || body.User.ID != "user-1" || body.User.Email != "user@example.com" {
 		t.Fatalf("unexpected auth response: %+v", body)
 	}
+}
+
+func TestRouterRotatesRefreshToken(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:       &fakeAuthService{},
+		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+		RefreshSessions:   &fakeRefreshSessionManager{session: auth.Session{UserID: "user-1"}, token: "replacement-refresh-token"},
+	})
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/refresh", `{"refreshToken":"current-refresh-token"}`)
+	assertStatus(t, response, http.StatusOK)
+	var body refreshResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode refresh response: %v", err)
+	}
+	if body.AccessToken != "signed-token" || body.RefreshToken != "replacement-refresh-token" || body.TokenType != "Bearer" {
+		t.Fatalf("unexpected refresh response: %+v", body)
+	}
+}
+
+func TestRouterRejectsInvalidRefreshToken(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:       &fakeAuthService{},
+		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+		RefreshSessions:   &fakeRefreshSessionManager{err: errors.New("session expired")},
+	})
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/refresh", `{"refreshToken":"invalid"}`)
+	assertStatus(t, response, http.StatusUnauthorized)
+	assertAuthErrorCode(t, response, "invalid_refresh_token")
 }
 
 func TestRouterHidesLoginCredentialFailures(t *testing.T) {
