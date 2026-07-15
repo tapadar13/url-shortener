@@ -108,6 +108,8 @@ paths:
     post:
       summary: Create a short URL
       operationId: createShortURL
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -137,6 +139,8 @@ paths:
     get:
       summary: Retrieve a short URL
       operationId: getShortURL
+      security:
+        - bearerAuth: []
       responses:
         '200':
           $ref: '#/components/responses/URLResponse'
@@ -157,6 +161,8 @@ paths:
     put:
       summary: Update a short URL destination
       operationId: updateShortURL
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -181,6 +187,8 @@ paths:
     delete:
       summary: Delete a short URL
       operationId: deleteShortURL
+      security:
+        - bearerAuth: []
       responses:
         '204':
           description: Short URL deleted
@@ -211,6 +219,8 @@ paths:
     get:
       summary: Retrieve short URL statistics
       operationId: getShortURLStats
+      security:
+        - bearerAuth: []
       responses:
         '200':
           $ref: '#/components/responses/URLStatsResponse'
@@ -236,6 +246,8 @@ paths:
         The range defaults to the latest 30 days and cannot exceed 90 days. Click analytics
         and cached access counts are recorded asynchronously and may briefly differ.
       operationId: getShortURLAnalytics
+      security:
+        - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/AnalyticsFrom'
         - $ref: '#/components/parameters/AnalyticsTo'
