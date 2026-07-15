@@ -81,3 +81,17 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 	}
 	return user, nil
 }
+
+func (s *Service) GetUser(ctx context.Context, userID string) (User, error) {
+	if s == nil || s.repository == nil {
+		return User{}, errors.New("authentication service is required")
+	}
+	if strings.TrimSpace(userID) == "" {
+		return User{}, ErrUserNotFound
+	}
+	user, err := s.repository.FindUserByID(ctx, userID)
+	if err != nil {
+		return User{}, fmt.Errorf("find authenticated user: %w", err)
+	}
+	return user, nil
+}
