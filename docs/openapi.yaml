@@ -38,6 +38,44 @@ paths:
             text/plain:
               schema:
                 type: string
+  /auth/register:
+    post:
+      summary: Register a user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/EmailTaken'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/login:
+    post:
+      summary: Authenticate a user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
   /shorten:
     post:
       summary: Create a short URL
@@ -271,6 +309,24 @@ components:
         type: integer
         minimum: 1
   responses:
+    AuthSuccess:
+      description: Authentication succeeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthResponse'
+    EmailTaken:
+      description: Email is already registered
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InvalidCredentials:
+      description: Email or password is invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     RequestEntityTooLarge:
       description: Request body exceeds the configured maximum size
       content:
@@ -430,6 +486,35 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
+    AuthRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresAt, user]
+      properties:
+        accessToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          type: object
+          required: [id, email]
+          properties:
+            id: {type: string}
+            email: {type: string, format: email}
     CreateURLRequest:
       type: object
       additionalProperties: false
