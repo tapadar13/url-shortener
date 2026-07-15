@@ -49,7 +49,7 @@ type urlStatsResponse struct {
 func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request createURLRequest
-		if err := decodeURLRequest(w, r, &request); err != nil {
+		if err := decodeJSONRequest(r, &request); err != nil {
 			if isRequestBodyTooLarge(err) {
 				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
 				return
@@ -81,7 +81,7 @@ func currentOwnerID(ctx context.Context) string {
 func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request updateURLRequest
-		if err := decodeURLRequest(w, r, &request); err != nil {
+		if err := decodeJSONRequest(r, &request); err != nil {
 			if isRequestBodyTooLarge(err) {
 				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
 				return
@@ -211,7 +211,7 @@ func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
 	}
 }
 
-func decodeURLRequest(_ http.ResponseWriter, r *http.Request, request any) error {
+func decodeJSONRequest(r *http.Request, request any) error {
 	defer r.Body.Close()
 
 	decoder := json.NewDecoder(r.Body)

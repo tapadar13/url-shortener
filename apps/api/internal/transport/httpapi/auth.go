@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -65,8 +64,8 @@ func newLoginHandler(service AuthService, issuer AccessTokenIssuer, sessions Ref
 func newAuthHandler(service AuthService, issuer AccessTokenIssuer, sessions RefreshSessionManager, login bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request authRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-			writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
+		if err := decodeJSONRequest(r, &request); err != nil {
+			writeAuthDecodeError(w, err)
 			return
 		}
 		var user auth.User
@@ -103,7 +102,11 @@ func newAuthHandler(service AuthService, issuer AccessTokenIssuer, sessions Refr
 func newRefreshHandler(issuer AccessTokenIssuer, sessions RefreshSessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request refreshRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.RefreshToken == "" {
+		if err := decodeJSONRequest(r, &request); err != nil {
+			writeAuthDecodeError(w, err)
+			return
+		}
+		if request.RefreshToken == "" {
 			writeError(w, http.StatusBadRequest, "invalid_request", "refresh token is required")
 			return
 		}
@@ -124,7 +127,11 @@ func newRefreshHandler(issuer AccessTokenIssuer, sessions RefreshSessionManager)
 func newLogoutHandler(sessions RefreshSessionManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request refreshRequest
-		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.RefreshToken == "" {
+		if err := decodeJSONRequest(r, &request); err != nil {
+			writeAuthDecodeError(w, err)
+			return
+		}
+		if request.RefreshToken == "" {
 			writeError(w, http.StatusBadRequest, "invalid_request", "refresh token is required")
 			return
 		}
@@ -134,6 +141,14 @@ func newLogoutHandler(sessions RefreshSessionManager) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func writeAuthDecodeError(w http.ResponseWriter, err error) {
+	if isRequestBodyTooLarge(err) {
+		writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
+		return
+	}
+	writeError(w, http.StatusBadRequest, "invalid_request", "request body must be a valid JSON object")
 }
 
 func writeAuthError(w http.ResponseWriter, err error, login bool) {
