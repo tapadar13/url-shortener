@@ -13,8 +13,8 @@ func TestURLIndexModels(t *testing.T) {
 	t.Parallel()
 
 	models := URLIndexModels()
-	if len(models) != 3 {
-		t.Fatalf("expected 3 index models, got %d", len(models))
+	if len(models) != 4 {
+		t.Fatalf("expected 4 index models, got %d", len(models))
 	}
 
 	assertIndexKeys(t, models[0].Keys, bson.D{{Key: "short_code", Value: 1}})
@@ -23,8 +23,11 @@ func TestURLIndexModels(t *testing.T) {
 	assertIndexKeys(t, models[1].Keys, bson.D{{Key: "created_at", Value: -1}})
 	assertIndexOptions(t, models[1].Options, CreatedAtIndexName, false)
 
-	assertIndexKeys(t, models[2].Keys, bson.D{{Key: "expires_at", Value: 1}})
-	assertTTLIndexOptions(t, models[2].Options, ExpirationIndexName)
+	assertIndexKeys(t, models[2].Keys, bson.D{{Key: "owner_id", Value: 1}, {Key: "created_at", Value: -1}, {Key: "_id", Value: -1}})
+	assertIndexOptions(t, models[2].Options, OwnerCreatedAtIndexName, false)
+
+	assertIndexKeys(t, models[3].Keys, bson.D{{Key: "expires_at", Value: 1}})
+	assertTTLIndexOptions(t, models[3].Options, ExpirationIndexName)
 }
 
 func TestRateLimitIndexModels(t *testing.T) {
