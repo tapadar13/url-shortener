@@ -256,7 +256,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			Window:   rateLimitWindow,
 		},
 		Auth: AuthConfig{
-			TokenSecret:   value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me"),
+			TokenSecret:   value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me-0123456789"),
 			TokenIssuer:   value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
 			TokenAudience: value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
 			TokenTTL:      authTokenTTL,
@@ -382,8 +382,8 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("RATE_LIMIT_WINDOW must be greater than zero"))
 	}
 
-	if strings.TrimSpace(cfg.Auth.TokenSecret) == "" || (cfg.Environment == EnvironmentProduction && cfg.Auth.TokenSecret == "development-only-change-me") {
-		errs = append(errs, errors.New("AUTH_TOKEN_SECRET must be set to a non-default value in production"))
+	if strings.TrimSpace(cfg.Auth.TokenSecret) == "" || len(cfg.Auth.TokenSecret) < 32 || (cfg.Environment == EnvironmentProduction && cfg.Auth.TokenSecret == "development-only-change-me-0123456789") {
+		errs = append(errs, errors.New("AUTH_TOKEN_SECRET must be at least 32 characters and non-default in production"))
 	}
 	if strings.TrimSpace(cfg.Auth.TokenIssuer) == "" {
 		errs = append(errs, errors.New("AUTH_TOKEN_ISSUER is required"))
