@@ -94,10 +94,11 @@ type RateLimitConfig struct {
 }
 
 type AuthConfig struct {
-	TokenSecret   string
-	TokenIssuer   string
-	TokenAudience string
-	TokenTTL      time.Duration
+	TokenSecret     string
+	TokenIssuer     string
+	TokenAudience   string
+	TokenTTL        time.Duration
+	RefreshTokenTTL time.Duration
 }
 
 type LogConfig struct {
@@ -212,6 +213,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	authRefreshTokenTTL, err := durationValue(lookup, "AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -258,10 +264,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			Window:   rateLimitWindow,
 		},
 		Auth: AuthConfig{
-			TokenSecret:   value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me-0123456789"),
-			TokenIssuer:   value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
-			TokenAudience: value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
-			TokenTTL:      authTokenTTL,
+			TokenSecret:     value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me-0123456789"),
+			TokenIssuer:     value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
+			TokenAudience:   value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
+			TokenTTL:        authTokenTTL,
+			RefreshTokenTTL: authRefreshTokenTTL,
 		},
 		Log: LogConfig{
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
@@ -398,6 +405,9 @@ func (cfg Config) Validate() error {
 	}
 	if cfg.Auth.TokenTTL <= 0 {
 		errs = append(errs, errors.New("AUTH_TOKEN_TTL must be greater than zero"))
+	}
+	if cfg.Auth.RefreshTokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_REFRESH_TOKEN_TTL must be greater than zero"))
 	}
 
 	if !oneOf(cfg.Log.Level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError) {
