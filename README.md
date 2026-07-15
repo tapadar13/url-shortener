@@ -110,6 +110,21 @@ When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `
 
 Clients are identified from the direct socket address by default. When `TRUSTED_PROXY_CIDRS` is configured, `X-Forwarded-For` is accepted only from a trusted socket peer and the proxy chain is evaluated from right to left, preventing clients from bypassing limits with spoofed values.
 
+### Authentication
+
+```http
+POST /auth/register
+POST /auth/login
+```
+
+Both endpoints accept `email` and a password of at least 12 characters. Registration returns `201 Created`; login returns `200 OK`. Successful responses contain a short-lived Bearer access token and sanitized user details.
+
+```bash
+curl -i http://localhost:8080/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"correct horse battery staple"}'
+```
+
 ### Create a Short URL
 
 ```http
