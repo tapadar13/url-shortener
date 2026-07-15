@@ -244,6 +244,7 @@ func newIntegrationMongoClient(t *testing.T) *mongodb.Client {
 		Database:             database,
 		URLsCollection:       "urls",
 		UsersCollection:      "users",
+		SessionsCollection:   "sessions",
 		RateLimitsCollection: "rate_limits",
 		AnalyticsCollection:  "click_analytics",
 	}, integrationTimeout)
