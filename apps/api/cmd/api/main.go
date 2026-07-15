@@ -10,6 +10,8 @@ import (
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/analytics"
 	analyticsrepository "github.com/tapadar13/url-shortener/apps/api/internal/analytics/repository/mongodb"
+	"github.com/tapadar13/url-shortener/apps/api/internal/auth"
+	authrepository "github.com/tapadar13/url-shortener/apps/api/internal/auth/repository/mongodb"
 	"github.com/tapadar13/url-shortener/apps/api/internal/config"
 	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
@@ -69,11 +71,26 @@ func run(ctx context.Context) error {
 
 	logger.Info("MongoDB indexes ready",
 		"urls_collection", cfg.MongoDB.URLsCollection,
+		"users_collection", cfg.MongoDB.UsersCollection,
 		"rate_limits_collection", cfg.MongoDB.RateLimitsCollection,
 		"analytics_collection", cfg.MongoDB.AnalyticsCollection,
 	)
 
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
+	authRepository := authrepository.New(mongoClient.UsersCollection())
+	authService, err := auth.NewService(authRepository)
+	if err != nil {
+		return fmt.Errorf("create authentication service: %w", err)
+	}
+	tokenService, err := auth.NewTokenService(auth.TokenOptions{
+		Secret:   cfg.Auth.TokenSecret,
+		Issuer:   cfg.Auth.TokenIssuer,
+		Audience: cfg.Auth.TokenAudience,
+		TTL:      cfg.Auth.TokenTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("create authentication token service: %w", err)
+	}
 	rateLimitRepository := ratelimitrepository.New(mongoClient.RateLimitsCollection())
 	analyticsRepository := analyticsrepository.New(mongoClient.AnalyticsCollection())
 	analyticsReporter, err := analytics.NewReporter(analyticsRepository, analytics.ReporterOptions{})
@@ -239,6 +256,8 @@ func run(ctx context.Context) error {
 		AnalyticsReporter:  analyticsReporter,
 		RedirectStatusCode: cfg.Redirect.StatusCode,
 		Metrics:            metrics.New(),
+		AuthService:        authService,
+		AccessTokenIssuer:  tokenService,
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
