@@ -10,6 +10,7 @@ import (
 
 var (
 	ErrTokenSecretRequired = errors.New("token secret is required")
+	ErrTokenSecretWeak     = errors.New("token secret must be at least 32 characters")
 	ErrTokenTTLInvalid     = errors.New("token TTL must be greater than zero")
 	ErrTokenInvalid        = errors.New("token is invalid")
 )
@@ -36,6 +37,9 @@ type TokenClaims struct {
 func NewTokenService(options TokenOptions) (*TokenService, error) {
 	if strings.TrimSpace(options.Secret) == "" {
 		return nil, ErrTokenSecretRequired
+	}
+	if len(options.Secret) < 32 {
+		return nil, ErrTokenSecretWeak
 	}
 	if options.TTL <= 0 {
 		return nil, ErrTokenTTLInvalid
