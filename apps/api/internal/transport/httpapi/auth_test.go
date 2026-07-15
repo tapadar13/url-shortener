@@ -146,6 +146,16 @@ func TestRouterHidesLoginCredentialFailures(t *testing.T) {
 	assertAuthErrorCode(t, response, "invalid_credentials")
 }
 
+func TestRouterHidesUnexpectedAuthenticationFailure(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:       &fakeAuthService{err: errors.New("database unavailable")},
+		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+	})
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/login", `{"email":"user@example.com","password":"correct horse battery staple"}`)
+	assertStatus(t, response, http.StatusInternalServerError)
+	assertAuthErrorCode(t, response, "internal_error")
+}
+
 func TestRouterMapsDuplicateRegistrationToConflict(t *testing.T) {
 	router := NewRouter(Dependencies{
 		AuthService:       &fakeAuthService{err: auth.ErrEmailTaken},

@@ -69,3 +69,15 @@ func TestAuthenticateHidesRepositoryAndPasswordErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestAuthenticatePreservesUnexpectedRepositoryFailure(t *testing.T) {
+	repositoryFailure := errors.New("database unavailable")
+	service, err := NewService(&fakeRepository{err: repositoryFailure})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	_, err = service.Authenticate(context.Background(), "user@example.com", "correct horse battery staple")
+	if !errors.Is(err, repositoryFailure) || errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("expected infrastructure failure, got %v", err)
+	}
+}
