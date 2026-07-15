@@ -19,16 +19,22 @@ type AccessTokenIssuer interface {
 	Issue(string) (string, time.Time, error)
 }
 
+type RefreshSessionManager interface {
+	Create(context.Context, string) (auth.Session, string, error)
+	Rotate(context.Context, string) (auth.Session, string, error)
+}
+
 type authRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
 
 type authResponse struct {
-	AccessToken string           `json:"accessToken"`
-	TokenType   string           `json:"tokenType"`
-	ExpiresAt   time.Time        `json:"expiresAt"`
-	User        userAuthResponse `json:"user"`
+	AccessToken  string           `json:"accessToken"`
+	RefreshToken string           `json:"refreshToken,omitempty"`
+	TokenType    string           `json:"tokenType"`
+	ExpiresAt    time.Time        `json:"expiresAt"`
+	User         userAuthResponse `json:"user"`
 }
 
 type userAuthResponse struct {
@@ -36,15 +42,26 @@ type userAuthResponse struct {
 	Email string `json:"email"`
 }
 
-func newRegisterHandler(service AuthService, issuer AccessTokenIssuer) http.HandlerFunc {
-	return newAuthHandler(service, issuer, false)
+type refreshRequest struct {
+	RefreshToken string `json:"refreshToken"`
 }
 
-func newLoginHandler(service AuthService, issuer AccessTokenIssuer) http.HandlerFunc {
-	return newAuthHandler(service, issuer, true)
+type refreshResponse struct {
+	AccessToken  string    `json:"accessToken"`
+	RefreshToken string    `json:"refreshToken"`
+	TokenType    string    `json:"tokenType"`
+	ExpiresAt    time.Time `json:"expiresAt"`
 }
 
-func newAuthHandler(service AuthService, issuer AccessTokenIssuer, login bool) http.HandlerFunc {
+func newRegisterHandler(service AuthService, issuer AccessTokenIssuer, sessions RefreshSessionManager) http.HandlerFunc {
+	return newAuthHandler(service, issuer, sessions, false)
+}
+
+func newLoginHandler(service AuthService, issuer AccessTokenIssuer, sessions RefreshSessionManager) http.HandlerFunc {
+	return newAuthHandler(service, issuer, sessions, true)
+}
+
+func newAuthHandler(service AuthService, issuer AccessTokenIssuer, sessions RefreshSessionManager, login bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request authRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -67,11 +84,39 @@ func newAuthHandler(service AuthService, issuer AccessTokenIssuer, login bool) h
 			writeError(w, http.StatusInternalServerError, "token_issue_failed", "could not issue access token")
 			return
 		}
+		refreshToken := ""
+		if sessions != nil {
+			if _, refreshToken, err = sessions.Create(r.Context(), user.ID); err != nil {
+				writeError(w, http.StatusInternalServerError, "session_issue_failed", "could not issue refresh token")
+				return
+			}
+		}
 		status := http.StatusCreated
 		if login {
 			status = http.StatusOK
 		}
-		writeJSON(w, status, authResponse{AccessToken: accessToken, TokenType: "Bearer", ExpiresAt: expiresAt, User: userAuthResponse{ID: user.ID, Email: user.Email}})
+		writeJSON(w, status, authResponse{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer", ExpiresAt: expiresAt, User: userAuthResponse{ID: user.ID, Email: user.Email}})
+	}
+}
+
+func newRefreshHandler(issuer AccessTokenIssuer, sessions RefreshSessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request refreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.RefreshToken == "" {
+			writeError(w, http.StatusBadRequest, "invalid_request", "refresh token is required")
+			return
+		}
+		session, refreshToken, err := sessions.Rotate(r.Context(), request.RefreshToken)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
+			return
+		}
+		accessToken, expiresAt, err := issuer.Issue(session.UserID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "token_issue_failed", "could not issue access token")
+			return
+		}
+		writeJSON(w, http.StatusOK, refreshResponse{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer", ExpiresAt: expiresAt})
 	}
 }
 

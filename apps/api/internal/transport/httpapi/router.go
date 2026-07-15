@@ -66,6 +66,7 @@ type Dependencies struct {
 	AuthService         AuthService
 	AccessTokenIssuer   AccessTokenIssuer
 	AccessTokenVerifier AccessTokenVerifier
+	RefreshSessions     RefreshSessionManager
 	RedirectStatusCode  int
 }
 
@@ -83,8 +84,11 @@ func NewRouter(dependencies Dependencies) http.Handler {
 		router.Get("/metrics", newMetricsHandler(dependencies.Metrics))
 	}
 	if dependencies.AuthService != nil && dependencies.AccessTokenIssuer != nil {
-		router.Post("/auth/register", newRegisterHandler(dependencies.AuthService, dependencies.AccessTokenIssuer))
-		router.Post("/auth/login", newLoginHandler(dependencies.AuthService, dependencies.AccessTokenIssuer))
+		router.Post("/auth/register", newRegisterHandler(dependencies.AuthService, dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+		router.Post("/auth/login", newLoginHandler(dependencies.AuthService, dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+		if dependencies.RefreshSessions != nil {
+			router.Post("/auth/refresh", newRefreshHandler(dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+		}
 	}
 
 	if dependencies.URLCreator != nil {

@@ -86,6 +86,11 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create authentication service: %w", err)
 	}
+	sessionRepository := authrepository.NewSessionRepository(mongoClient.SessionsCollection())
+	sessionService, err := auth.NewSessionService(sessionRepository, cfg.Auth.RefreshTokenTTL)
+	if err != nil {
+		return fmt.Errorf("create refresh session service: %w", err)
+	}
 	tokenService, err := auth.NewTokenService(auth.TokenOptions{
 		Secret:   cfg.Auth.TokenSecret,
 		Issuer:   cfg.Auth.TokenIssuer,
@@ -264,6 +269,7 @@ func run(ctx context.Context) error {
 		AuthService:         authService,
 		AccessTokenIssuer:   tokenService,
 		AccessTokenVerifier: tokenService,
+		RefreshSessions:     sessionService,
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
