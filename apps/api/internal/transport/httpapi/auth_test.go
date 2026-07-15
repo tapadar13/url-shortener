@@ -114,6 +114,27 @@ func TestRouterRejectsInvalidRefreshToken(t *testing.T) {
 	assertAuthErrorCode(t, response, "invalid_refresh_token")
 }
 
+func TestRouterLogsOutRefreshSession(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:       &fakeAuthService{},
+		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+		RefreshSessions:   &fakeRefreshSessionManager{},
+	})
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/logout", `{"refreshToken":"active-refresh-token"}`)
+	assertStatus(t, response, http.StatusNoContent)
+}
+
+func TestRouterRejectsInvalidLogoutSession(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:       &fakeAuthService{},
+		AccessTokenIssuer: &fakeAccessTokenIssuer{},
+		RefreshSessions:   &fakeRefreshSessionManager{err: errors.New("session not found")},
+	})
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/logout", `{"refreshToken":"invalid"}`)
+	assertStatus(t, response, http.StatusUnauthorized)
+	assertAuthErrorCode(t, response, "invalid_refresh_token")
+}
+
 func TestRouterHidesLoginCredentialFailures(t *testing.T) {
 	router := NewRouter(Dependencies{
 		AuthService:       &fakeAuthService{err: auth.ErrInvalidCredentials},
