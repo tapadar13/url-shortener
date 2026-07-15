@@ -12,6 +12,7 @@ import (
 type AuthService interface {
 	Register(context.Context, string, string) (auth.User, error)
 	Authenticate(context.Context, string, string) (auth.User, error)
+	GetUser(context.Context, string) (auth.User, error)
 }
 
 type AccessTokenIssuer interface {
@@ -140,6 +141,26 @@ func newLogoutHandler(sessions RefreshSessionManager) http.HandlerFunc {
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func newCurrentUserHandler(service AuthService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := CurrentUserID(r.Context())
+		if !ok {
+			writeError(w, http.StatusUnauthorized, "unauthorized", "authentication is required")
+			return
+		}
+		user, err := service.GetUser(r.Context(), userID)
+		if err != nil {
+			if errors.Is(err, auth.ErrUserNotFound) {
+				writeError(w, http.StatusUnauthorized, "unauthorized", "authentication is required")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
+			return
+		}
+		writeJSON(w, http.StatusOK, userAuthResponse{ID: user.ID, Email: user.Email})
 	}
 }
 

@@ -91,6 +91,9 @@ func NewRouter(dependencies Dependencies) http.Handler {
 			router.Post("/auth/logout", newLogoutHandler(dependencies.RefreshSessions))
 		}
 	}
+	if dependencies.AuthService != nil && dependencies.AccessTokenVerifier != nil {
+		router.With(RequireAuth(dependencies.AccessTokenVerifier)).Get("/auth/me", newCurrentUserHandler(dependencies.AuthService))
+	}
 
 	if dependencies.URLCreator != nil {
 		createHandler := newCreateURLHandler(dependencies.URLCreator)
