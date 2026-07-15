@@ -38,6 +38,10 @@ services:
       ANALYTICS_WORKERS: 2
       ANALYTICS_QUEUE_SIZE: 4096
       ANALYTICS_WRITE_TIMEOUT: 5s
+      AUTH_TOKEN_SECRET: replace-with-a-random-secret
+      AUTH_TOKEN_ISSUER: url-shortener
+      AUTH_TOKEN_AUDIENCE: url-shortener-api
+      AUTH_TOKEN_TTL: 15m
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
