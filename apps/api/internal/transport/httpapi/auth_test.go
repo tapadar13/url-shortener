@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tapadar13/url-shortener/apps/api/internal/auth"
+	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 )
 
 type fakeAuthService struct {
@@ -162,6 +163,25 @@ func TestRouterReturnsBadRequestForMalformedAuthJSON(t *testing.T) {
 	})
 	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/login", `{invalid`)
 	assertStatus(t, response, http.StatusBadRequest)
+}
+
+func TestRouterRejectsUnknownAndTrailingAuthJSON(t *testing.T) {
+	for _, body := range []string{
+		`{"email":"user@example.com","password":"correct horse battery staple","admin":true}`,
+		`{"email":"user@example.com","password":"correct horse battery staple"}{}`,
+	} {
+		router := NewRouter(Dependencies{AuthService: &fakeAuthService{}, AccessTokenIssuer: &fakeAccessTokenIssuer{}})
+		response := executeRequestWithBody(t, router, http.MethodPost, "/auth/login", body)
+		assertStatus(t, response, http.StatusBadRequest)
+		assertAuthErrorCode(t, response, "invalid_request")
+	}
+}
+
+func TestRouterReturnsPayloadTooLargeForAuthRequest(t *testing.T) {
+	router := httpserver.MaxRequestBody(8)(NewRouter(Dependencies{AuthService: &fakeAuthService{}, AccessTokenIssuer: &fakeAccessTokenIssuer{}}))
+	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/login", `{"email":"user@example.com"}`)
+	assertStatus(t, response, http.StatusRequestEntityTooLarge)
+	assertAuthErrorCode(t, response, "request_entity_too_large")
 }
 
 func assertAuthErrorCode(t *testing.T, response *http.Response, expected string) {
