@@ -64,6 +64,10 @@ func (m *fakeRefreshSessionManager) Rotate(context.Context, string) (auth.Sessio
 	return m.session, m.token, nil
 }
 
+func (m *fakeRefreshSessionManager) Revoke(context.Context, string) error {
+	return m.err
+}
+
 func TestRouterRegistersUserAndReturnsAccessToken(t *testing.T) {
 	router := NewRouter(Dependencies{
 		AuthService:       &fakeAuthService{user: UserAuthTestUser{ID: "user-1", Email: "user@example.com"}},
