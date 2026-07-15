@@ -192,6 +192,33 @@ func TestURLRepositoryRejectsDuplicateShortCode(t *testing.T) {
 	}
 }
 
+func TestURLRepositoryListsOnlyOwnerURLsNewestFirst(t *testing.T) {
+	repository, _ := newIntegrationURLRepository(t)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
+	defer cancel()
+	now := time.Now().UTC()
+	for _, record := range []urlmodel.NewParams{
+		{OwnerID: "owner-a", LongURL: "https://example.com/old", ShortCode: fmt.Sprintf("Old%d", now.UnixNano()), Now: now.Add(-time.Hour)},
+		{OwnerID: "owner-a", LongURL: "https://example.com/new", ShortCode: fmt.Sprintf("New%d", now.UnixNano()), Now: now},
+		{OwnerID: "owner-b", LongURL: "https://example.com/other", ShortCode: fmt.Sprintf("Other%d", now.UnixNano()), Now: now.Add(time.Hour)},
+	} {
+		created, err := urlmodel.New(record)
+		if err != nil {
+			t.Fatalf("create domain URL: %v", err)
+		}
+		if _, err := repository.Create(ctx, created); err != nil {
+			t.Fatalf("create URL: %v", err)
+		}
+	}
+	urls, err := repository.ListByOwner(ctx, "owner-a", 10)
+	if err != nil {
+		t.Fatalf("list URLs: %v", err)
+	}
+	if len(urls) != 2 || urls[0].LongURL != "https://example.com/new" || urls[1].LongURL != "https://example.com/old" {
+		t.Fatalf("expected owner-scoped newest-first results, got %+v", urls)
+	}
+}
+
 func newIntegrationURLRepository(t *testing.T) (*urlrepository.Repository, *mongo.Collection) {
 	t.Helper()
 
@@ -216,6 +243,7 @@ func newIntegrationMongoClient(t *testing.T) *mongodb.Client {
 		URI:                  uri,
 		Database:             database,
 		URLsCollection:       "urls",
+		UsersCollection:      "users",
 		RateLimitsCollection: "rate_limits",
 		AnalyticsCollection:  "click_analytics",
 	}, integrationTimeout)
