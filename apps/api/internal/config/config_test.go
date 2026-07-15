@@ -118,6 +118,10 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 		"REQUEST_TIMEOUT":                  "3s",
 		"SHUTDOWN_TIMEOUT":                 "15s",
 		"MAX_REQUEST_BODY_BYTES":           "2097152",
+		"AUTH_TOKEN_SECRET":                "production-secret-value",
+		"AUTH_TOKEN_ISSUER":                "test-issuer",
+		"AUTH_TOKEN_AUDIENCE":              "test-audience",
+		"AUTH_TOKEN_TTL":                   "30m",
 	})
 	if err != nil {
 		t.Fatalf("expected overrides to be valid: %v", err)
@@ -196,6 +200,9 @@ func TestLoadFromMapAppliesOverrides(t *testing.T) {
 	}
 	if cfg.MaxRequestBodyBytes != 2<<20 {
 		t.Fatalf("expected overridden request body limit 2 MiB, got %d", cfg.MaxRequestBodyBytes)
+	}
+	if cfg.Auth.TokenSecret != "production-secret-value" || cfg.Auth.TokenIssuer != "test-issuer" || cfg.Auth.TokenAudience != "test-audience" || cfg.Auth.TokenTTL != 30*time.Minute {
+		t.Fatalf("expected overridden auth config, got %+v", cfg.Auth)
 	}
 }
 
