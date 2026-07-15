@@ -65,3 +65,17 @@ func (s *SessionService) Rotate(ctx context.Context, token string) (Session, str
 	}
 	return s.Create(ctx, session.UserID)
 }
+
+func (s *SessionService) Revoke(ctx context.Context, token string) error {
+	if s == nil || s.repository == nil {
+		return errors.New("session service is required")
+	}
+	if token == "" {
+		return ErrSessionTokenRequired
+	}
+	session, err := s.repository.FindSessionByTokenHash(ctx, HashSessionToken(token))
+	if err != nil {
+		return err
+	}
+	return s.repository.RevokeSession(ctx, session.ID, s.now().UTC())
+}
