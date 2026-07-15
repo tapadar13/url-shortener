@@ -14,6 +14,7 @@ var (
 	ErrEmailInvalid        = errors.New("email is invalid")
 	ErrPasswordRequired    = errors.New("password is required")
 	ErrPasswordTooShort    = errors.New("password must be at least 12 characters")
+	ErrPasswordTooLong     = errors.New("password must not exceed 72 bytes")
 	ErrPasswordHashInvalid = errors.New("password hash is invalid")
 	ErrPasswordMismatch    = errors.New("password does not match")
 )
@@ -21,6 +22,7 @@ var (
 const (
 	minPasswordLength = 12
 	maxEmailLength    = 320
+	maxPasswordBytes  = 72
 	bcryptCost        = bcrypt.DefaultCost
 )
 
@@ -80,6 +82,9 @@ func validatePassword(password string) error {
 	}
 	if len([]rune(password)) < minPasswordLength {
 		return ErrPasswordTooShort
+	}
+	if len([]byte(password)) > maxPasswordBytes {
+		return ErrPasswordTooLong
 	}
 	return nil
 }
