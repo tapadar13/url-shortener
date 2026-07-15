@@ -42,6 +42,30 @@ func TestRateLimitIndexModels(t *testing.T) {
 	assertTTLIndexOptions(t, models[0].Options, RateLimitExpirationIndexName)
 }
 
+func TestUserIndexModels(t *testing.T) {
+	t.Parallel()
+
+	models := UserIndexModels()
+	if len(models) != 1 {
+		t.Fatalf("expected 1 user index model, got %d", len(models))
+	}
+	assertIndexKeys(t, models[0].Keys, bson.D{{Key: "email", Value: 1}})
+	assertIndexOptions(t, models[0].Options, UserEmailIndexName, true)
+}
+
+func TestSessionIndexModels(t *testing.T) {
+	t.Parallel()
+
+	models := SessionIndexModels()
+	if len(models) != 2 {
+		t.Fatalf("expected 2 session index models, got %d", len(models))
+	}
+	assertIndexKeys(t, models[0].Keys, bson.D{{Key: "token_hash", Value: 1}})
+	assertIndexOptions(t, models[0].Options, SessionTokenHashIndexName, true)
+	assertIndexKeys(t, models[1].Keys, bson.D{{Key: "expires_at", Value: 1}})
+	assertTTLIndexOptions(t, models[1].Options, SessionExpirationIndexName)
+}
+
 func TestAnalyticsIndexModels(t *testing.T) {
 	t.Parallel()
 
