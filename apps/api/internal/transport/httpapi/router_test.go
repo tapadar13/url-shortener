@@ -53,6 +53,24 @@ func TestRouterRequiresAuthAndAssignsOwnerOnURLCreation(t *testing.T) {
 	}
 }
 
+func TestRouterFailsClosedWithoutOwnerAwareManagementService(t *testing.T) {
+	finder := &fakeURLFinder{}
+	router := NewRouter(Dependencies{
+		URLFinder:           finder,
+		AccessTokenVerifier: fakeTokenVerifier{claims: auth.TokenClaims{UserID: "owner-1"}},
+	})
+	request := httptest.NewRequest(http.MethodGet, "/shorten/AbC123", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("expected fail-closed response, got %d", response.Code)
+	}
+	if finder.shortCode != "" {
+		t.Fatal("expected unscoped finder not to be called")
+	}
+}
+
 func TestRouterRecordsRequestMetrics(t *testing.T) {
 	requestMetrics := metrics.New()
 	router := NewRouter(Dependencies{Metrics: requestMetrics})
