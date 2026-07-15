@@ -35,6 +35,7 @@ type Config struct {
 	RedirectCache       RedirectCacheConfig
 	Analytics           AnalyticsConfig
 	RateLimit           RateLimitConfig
+	Auth                AuthConfig
 	Log                 LogConfig
 	RequestTimeout      time.Duration
 	ShutdownTimeout     time.Duration
@@ -89,6 +90,13 @@ type AnalyticsConfig struct {
 type RateLimitConfig struct {
 	Requests int
 	Window   time.Duration
+}
+
+type AuthConfig struct {
+	TokenSecret   string
+	TokenIssuer   string
+	TokenAudience string
+	TokenTTL      time.Duration
 }
 
 type LogConfig struct {
@@ -198,6 +206,11 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	authTokenTTL, err := durationValue(lookup, "AUTH_TOKEN_TTL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -241,6 +254,12 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		RateLimit: RateLimitConfig{
 			Requests: rateLimitRequests,
 			Window:   rateLimitWindow,
+		},
+		Auth: AuthConfig{
+			TokenSecret:   value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me"),
+			TokenIssuer:   value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
+			TokenAudience: value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
+			TokenTTL:      authTokenTTL,
 		},
 		Log: LogConfig{
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
@@ -361,6 +380,19 @@ func (cfg Config) Validate() error {
 
 	if cfg.RateLimit.Window <= 0 {
 		errs = append(errs, errors.New("RATE_LIMIT_WINDOW must be greater than zero"))
+	}
+
+	if strings.TrimSpace(cfg.Auth.TokenSecret) == "" || (cfg.Environment == EnvironmentProduction && cfg.Auth.TokenSecret == "development-only-change-me") {
+		errs = append(errs, errors.New("AUTH_TOKEN_SECRET must be set to a non-default value in production"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenIssuer) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_ISSUER is required"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenAudience) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_AUDIENCE is required"))
+	}
+	if cfg.Auth.TokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_TOKEN_TTL must be greater than zero"))
 	}
 
 	if !oneOf(cfg.Log.Level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError) {
