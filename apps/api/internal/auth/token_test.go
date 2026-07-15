@@ -8,7 +8,7 @@ import (
 
 func TestTokenIssueAndVerify(t *testing.T) {
 	now := time.Date(2026, time.July, 15, 10, 0, 0, 0, time.UTC)
-	service, err := newTokenService(TokenOptions{Secret: "a-long-development-secret-value", Issuer: "url-shortener", Audience: "api", TTL: time.Hour}, func() time.Time { return now })
+	service, err := newTokenService(TokenOptions{Secret: "a-long-development-secret-value-0123456789", Issuer: "url-shortener", Audience: "api", TTL: time.Hour}, func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("create token service: %v", err)
 	}
@@ -29,7 +29,7 @@ func TestTokenRejectsTamperingAndInvalidOptions(t *testing.T) {
 	if _, err := NewTokenService(TokenOptions{TTL: time.Hour}); !errors.Is(err, ErrTokenSecretRequired) {
 		t.Fatalf("expected secret validation error, got %v", err)
 	}
-	service, err := NewTokenService(TokenOptions{Secret: "secret", Issuer: "issuer", Audience: "audience", TTL: time.Hour})
+	service, err := NewTokenService(TokenOptions{Secret: "a-second-long-development-secret", Issuer: "issuer", Audience: "audience", TTL: time.Hour})
 	if err != nil {
 		t.Fatalf("create token service: %v", err)
 	}
@@ -39,5 +39,12 @@ func TestTokenRejectsTamperingAndInvalidOptions(t *testing.T) {
 	}
 	if _, err := service.Verify(token + "tampered"); !errors.Is(err, ErrTokenInvalid) {
 		t.Fatalf("expected invalid token error, got %v", err)
+	}
+}
+
+func TestTokenRejectsWeakSecret(t *testing.T) {
+	_, err := NewTokenService(TokenOptions{Secret: "too-short", TTL: time.Hour})
+	if !errors.Is(err, ErrTokenSecretWeak) {
+		t.Fatalf("expected weak secret error, got %v", err)
 	}
 }
