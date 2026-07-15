@@ -36,6 +36,13 @@ func (s *fakeAuthService) Authenticate(context.Context, string, string) (auth.Us
 	return auth.User{ID: s.user.ID, Email: s.user.Email}, nil
 }
 
+func (s *fakeAuthService) GetUser(context.Context, string) (auth.User, error) {
+	if s.err != nil {
+		return auth.User{}, s.err
+	}
+	return auth.User{ID: s.user.ID, Email: s.user.Email}, nil
+}
+
 type fakeAccessTokenIssuer struct{ err error }
 
 func (i *fakeAccessTokenIssuer) Issue(string) (string, time.Time, error) {
