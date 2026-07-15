@@ -88,6 +88,7 @@ func NewRouter(dependencies Dependencies) http.Handler {
 		router.Post("/auth/login", newLoginHandler(dependencies.AuthService, dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
 		if dependencies.RefreshSessions != nil {
 			router.Post("/auth/refresh", newRefreshHandler(dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+			router.Post("/auth/logout", newLogoutHandler(dependencies.RefreshSessions))
 		}
 	}
 

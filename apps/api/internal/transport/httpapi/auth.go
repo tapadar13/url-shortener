@@ -22,6 +22,7 @@ type AccessTokenIssuer interface {
 type RefreshSessionManager interface {
 	Create(context.Context, string) (auth.Session, string, error)
 	Rotate(context.Context, string) (auth.Session, string, error)
+	Revoke(context.Context, string) error
 }
 
 type authRequest struct {
@@ -117,6 +118,21 @@ func newRefreshHandler(issuer AccessTokenIssuer, sessions RefreshSessionManager)
 			return
 		}
 		writeJSON(w, http.StatusOK, refreshResponse{AccessToken: accessToken, RefreshToken: refreshToken, TokenType: "Bearer", ExpiresAt: expiresAt})
+	}
+}
+
+func newLogoutHandler(sessions RefreshSessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request refreshRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil || request.RefreshToken == "" {
+			writeError(w, http.StatusBadRequest, "invalid_request", "refresh token is required")
+			return
+		}
+		if err := sessions.Revoke(r.Context(), request.RefreshToken); err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid_refresh_token", "refresh token is invalid or expired")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
