@@ -117,9 +117,10 @@ Clients are identified from the direct socket address by default. When `TRUSTED_
 ```http
 POST /auth/register
 POST /auth/login
+POST /auth/refresh
 ```
 
-Both endpoints accept `email` and a password of at least 12 characters. Registration returns `201 Created`; login returns `200 OK`. Successful responses contain a short-lived Bearer access token and sanitized user details.
+Registration and login accept `email` and a password of at least 12 characters. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials.
 
 ```bash
 curl -i http://localhost:8080/auth/register \
@@ -344,6 +345,8 @@ curl -i http://localhost:8080/metrics
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
+| `MONGODB_USERS_COLLECTION` | `users` | Collection containing registered users |
+| `MONGODB_SESSIONS_COLLECTION` | `sessions` | Collection containing hashed refresh sessions |
 | `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
 | `MONGODB_ANALYTICS_COLLECTION` | `click_analytics` | Collection containing per-link UTC daily click aggregates |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL; `rediss://` enables TLS |
@@ -362,6 +365,11 @@ curl -i http://localhost:8080/metrics
 | `ANALYTICS_WRITE_TIMEOUT` | `5s` | MongoDB deadline for each queued analytics update |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
+| `AUTH_TOKEN_SECRET` | development-only value | HMAC secret; production requires a non-default value of at least 32 characters |
+| `AUTH_TOKEN_ISSUER` | `url-shortener` | Access-token issuer claim |
+| `AUTH_TOKEN_AUDIENCE` | `url-shortener-api` | Access-token audience claim |
+| `AUTH_TOKEN_TTL` | `15m` | Access-token lifetime |
+| `AUTH_REFRESH_TOKEN_TTL` | `720h` | Refresh-session lifetime |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
 | `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |
