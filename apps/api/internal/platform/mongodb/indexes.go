@@ -13,6 +13,7 @@ import (
 const (
 	ShortCodeIndexName           = "uniq_urls_short_code"
 	UserEmailIndexName           = "uniq_users_email"
+	OwnerCreatedAtIndexName      = "idx_urls_owner_created_at"
 	CreatedAtIndexName           = "idx_urls_created_at"
 	ExpirationIndexName          = "ttl_urls_expires_at"
 	RateLimitExpirationIndexName = "ttl_rate_limits_expires_at"
@@ -106,6 +107,10 @@ func URLIndexModels() []mongo.IndexModel {
 			Keys: bson.D{{Key: "created_at", Value: -1}},
 			Options: options.Index().
 				SetName(CreatedAtIndexName),
+		},
+		{
+			Keys:    bson.D{{Key: "owner_id", Value: 1}, {Key: "created_at", Value: -1}, {Key: "_id", Value: -1}},
+			Options: options.Index().SetName(OwnerCreatedAtIndexName),
 		},
 		{
 			Keys: bson.D{{Key: "expires_at", Value: 1}},
