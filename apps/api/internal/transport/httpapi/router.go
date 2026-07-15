@@ -20,12 +20,24 @@ type URLFinder interface {
 	GetByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error)
 }
 
+type OwnerURLFinder interface {
+	GetByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) (urlmodel.URL, error)
+}
+
 type URLUpdater interface {
 	UpdateLongURL(ctx context.Context, params service.UpdateParams) (urlmodel.URL, error)
 }
 
+type OwnerURLUpdater interface {
+	UpdateLongURLForOwner(ctx context.Context, ownerID string, params service.UpdateParams) (urlmodel.URL, error)
+}
+
 type URLDeleter interface {
 	DeleteByShortCode(ctx context.Context, shortCode string) error
+}
+
+type OwnerURLDeleter interface {
+	DeleteByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) error
 }
 
 type URLRedirector interface {
@@ -81,22 +93,23 @@ func NewRouter(dependencies Dependencies) http.Handler {
 
 	if dependencies.URLFinder != nil {
 		if dependencies.AnalyticsReporter != nil {
-			router.Get("/shorten/{shortCode}/analytics", newGetURLAnalyticsHandler(
+			analyticsHandler := newGetURLAnalyticsHandler(
 				dependencies.URLFinder,
 				dependencies.AnalyticsReporter,
 				dependencies.AnalyticsNow,
-			))
+			)
+			registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/analytics", analyticsHandler)
 		}
-		router.Get("/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
-		router.Get("/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
 	}
 
 	if dependencies.URLUpdater != nil {
-		router.Put("/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodPut, "/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
 	}
 
 	if dependencies.URLDeleter != nil {
-		router.Delete("/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodDelete, "/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
 	}
 
 	if dependencies.URLRedirector != nil {
@@ -104,6 +117,14 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	return router
+}
+
+func registerManagementRoute(router *chi.Mux, verifier AccessTokenVerifier, method, path string, handler http.HandlerFunc) {
+	if verifier != nil {
+		router.With(RequireAuth(verifier)).MethodFunc(method, path, handler)
+		return
+	}
+	router.MethodFunc(method, path, handler)
 }
 
 func handleNotFound(w http.ResponseWriter, _ *http.Request) {

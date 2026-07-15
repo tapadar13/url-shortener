@@ -90,10 +90,21 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 			return
 		}
 
-		updated, err := updater.UpdateLongURL(r.Context(), service.UpdateParams{
+		params := service.UpdateParams{
 			ShortCode: chi.URLParam(r, "shortCode"),
 			LongURL:   request.URL,
-		})
+		}
+		var updated urlmodel.URL
+		var err error
+		if ownerID, ok := CurrentUserID(r.Context()); ok {
+			if ownerUpdater, supported := updater.(OwnerURLUpdater); supported {
+				updated, err = ownerUpdater.UpdateLongURLForOwner(r.Context(), ownerID, params)
+			} else {
+				updated, err = updater.UpdateLongURL(r.Context(), params)
+			}
+		} else {
+			updated, err = updater.UpdateLongURL(r.Context(), params)
+		}
 		if err != nil {
 			writeUpdateURLError(w, err)
 			return
@@ -105,7 +116,7 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 
 func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		found, err := findURLForRequest(r, finder)
 		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
@@ -117,7 +128,7 @@ func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 
 func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		found, err := findURLForRequest(r, finder)
 		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
@@ -129,13 +140,32 @@ func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
 
 func newDeleteURLHandler(deleter URLDeleter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode")); err != nil {
+		err := deleteURLForRequest(r, deleter)
+		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
 		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func findURLForRequest(r *http.Request, finder URLFinder) (urlmodel.URL, error) {
+	if ownerID, ok := CurrentUserID(r.Context()); ok {
+		if ownerFinder, supported := finder.(OwnerURLFinder); supported {
+			return ownerFinder.GetByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
+		}
+	}
+	return finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+}
+
+func deleteURLForRequest(r *http.Request, deleter URLDeleter) error {
+	if ownerID, ok := CurrentUserID(r.Context()); ok {
+		if ownerDeleter, supported := deleter.(OwnerURLDeleter); supported {
+			return ownerDeleter.DeleteByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
+		}
+	}
+	return deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
 }
 
 func newRedirectHandler(redirector URLRedirector, statusCode int) http.HandlerFunc {
