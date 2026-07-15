@@ -43,6 +43,7 @@ services:
       AUTH_TOKEN_ISSUER: url-shortener
       AUTH_TOKEN_AUDIENCE: url-shortener-api
       AUTH_TOKEN_TTL: 15m
+      AUTH_REFRESH_TOKEN_TTL: 720h
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
