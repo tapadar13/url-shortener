@@ -160,6 +160,15 @@ curl -i http://localhost:8080/shorten \
   -d '{"url":"https://example.com/articles/123","expiresAt":"2026-08-12T08:00:00Z","shortCode":"summer2026"}'
 ```
 
+### List My Short URLs
+
+```http
+GET /shorten?limit=25
+Authorization: Bearer <access-token>
+```
+
+Returns the authenticated user’s newest short URLs. `limit` defaults to `25` and must be between `1` and `100`.
+
 Omit `shortCode` to have the service generate one. Custom codes must be 4-32 Base62 characters, cannot use reserved route names, and return `409 Conflict` when already taken.
 
 ### Retrieve a Short URL
