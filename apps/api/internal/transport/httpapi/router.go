@@ -37,18 +37,19 @@ type URLAnalyticsReporter interface {
 }
 
 type Dependencies struct {
-	ReadinessChecker   ReadinessChecker
-	URLCreator         URLCreator
-	URLFinder          URLFinder
-	URLUpdater         URLUpdater
-	URLDeleter         URLDeleter
-	URLRedirector      URLRedirector
-	AnalyticsReporter  URLAnalyticsReporter
-	AnalyticsNow       func() time.Time
-	Metrics            *metrics.Metrics
-	AuthService        AuthService
-	AccessTokenIssuer  AccessTokenIssuer
-	RedirectStatusCode int
+	ReadinessChecker    ReadinessChecker
+	URLCreator          URLCreator
+	URLFinder           URLFinder
+	URLUpdater          URLUpdater
+	URLDeleter          URLDeleter
+	URLRedirector       URLRedirector
+	AnalyticsReporter   URLAnalyticsReporter
+	AnalyticsNow        func() time.Time
+	Metrics             *metrics.Metrics
+	AuthService         AuthService
+	AccessTokenIssuer   AccessTokenIssuer
+	AccessTokenVerifier AccessTokenVerifier
+	RedirectStatusCode  int
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -70,7 +71,12 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	if dependencies.URLCreator != nil {
-		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))
+		createHandler := newCreateURLHandler(dependencies.URLCreator)
+		if dependencies.AccessTokenVerifier != nil {
+			router.With(RequireAuth(dependencies.AccessTokenVerifier)).Post("/shorten", createHandler)
+		} else {
+			router.Post("/shorten", createHandler)
+		}
 	}
 
 	if dependencies.URLFinder != nil {

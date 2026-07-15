@@ -60,6 +60,7 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 
 		created, err := creator.Create(r.Context(), service.CreateParams{
 			LongURL:   request.URL,
+			OwnerID:   currentOwnerID(r.Context()),
 			ExpiresAt: request.ExpiresAt,
 			ShortCode: request.ShortCode,
 		})
@@ -70,6 +71,11 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 
 		writeJSON(w, http.StatusCreated, newURLResponse(created))
 	}
+}
+
+func currentOwnerID(ctx context.Context) string {
+	ownerID, _ := CurrentUserID(ctx)
+	return ownerID
 }
 
 func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {

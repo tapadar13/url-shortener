@@ -247,17 +247,18 @@ func run(ctx context.Context) error {
 	}
 
 	handler := httpapi.NewRouter(httpapi.Dependencies{
-		ReadinessChecker:   mongoClient,
-		URLCreator:         urlCreator,
-		URLFinder:          urlFinder,
-		URLUpdater:         urlUpdater,
-		URLDeleter:         urlDeleter,
-		URLRedirector:      urlRedirector,
-		AnalyticsReporter:  analyticsReporter,
-		RedirectStatusCode: cfg.Redirect.StatusCode,
-		Metrics:            metrics.New(),
-		AuthService:        authService,
-		AccessTokenIssuer:  tokenService,
+		ReadinessChecker:    mongoClient,
+		URLCreator:          urlCreator,
+		URLFinder:           urlFinder,
+		URLUpdater:          urlUpdater,
+		URLDeleter:          urlDeleter,
+		URLRedirector:       urlRedirector,
+		AnalyticsReporter:   analyticsReporter,
+		RedirectStatusCode:  cfg.Redirect.StatusCode,
+		Metrics:             metrics.New(),
+		AuthService:         authService,
+		AccessTokenIssuer:   tokenService,
+		AccessTokenVerifier: tokenService,
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)
