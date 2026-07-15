@@ -108,6 +108,8 @@ Every API response also includes a server-generated `X-Request-ID` header. Use i
 
 When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. Exceeded requests return `429 Too Many Requests` with `Retry-After`. Health checks, readiness checks, and CORS preflights do not consume quota.
 
+URL management, statistics, analytics, and listing endpoints require a Bearer access token. Redirects remain public.
+
 Clients are identified from the direct socket address by default. When `TRUSTED_PROXY_CIDRS` is configured, `X-Forwarded-For` is accepted only from a trusted socket peer and the proxy chain is evaluated from right to left, preventing clients from bypassing limits with spoofed values.
 
 ### Authentication
