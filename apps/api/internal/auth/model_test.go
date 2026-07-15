@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -40,7 +41,7 @@ func TestPasswordHashAndComparison(t *testing.T) {
 }
 
 func TestPasswordValidation(t *testing.T) {
-	for _, password := range []string{"", "short"} {
+	for _, password := range []string{"", "short", strings.Repeat("a", 73)} {
 		if _, err := HashPassword(password); err == nil {
 			t.Fatalf("expected password %q to be rejected", password)
 		}
