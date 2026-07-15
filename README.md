@@ -118,9 +118,10 @@ Clients are identified from the direct socket address by default. When `TRUSTED_
 POST /auth/register
 POST /auth/login
 POST /auth/refresh
+POST /auth/logout
 ```
 
-Registration and login accept `email` and a password of at least 12 characters. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials.
+Registration and login accept `email` and a password of at least 12 characters. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials, or to `/auth/logout` to revoke the active session.
 
 ```bash
 curl -i http://localhost:8080/auth/register \
