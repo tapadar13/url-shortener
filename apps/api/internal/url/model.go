@@ -19,6 +19,7 @@ var (
 
 type URL struct {
 	ID             string
+	OwnerID        string
 	LongURL        string
 	ShortCode      string
 	AccessCount    int64
@@ -31,6 +32,7 @@ type URL struct {
 type NewParams struct {
 	LongURL   string
 	ShortCode string
+	OwnerID   string
 	Now       time.Time
 	ExpiresAt *time.Time
 }
@@ -53,6 +55,7 @@ func New(params NewParams) (URL, error) {
 	}
 
 	record := URL{
+		OwnerID:     strings.TrimSpace(params.OwnerID),
 		LongURL:     longURL,
 		ShortCode:   shortCode,
 		AccessCount: 0,
