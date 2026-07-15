@@ -16,9 +16,11 @@ const (
 )
 
 var (
-	ErrRepositoryRequired        = errors.New("URL repository is required")
-	ErrShortCodeGeneratorMissing = errors.New("short code generator is required")
-	ErrShortCodeRetriesExhausted = errors.New("short code generation retries exhausted")
+	ErrRepositoryRequired         = errors.New("URL repository is required")
+	ErrShortCodeGeneratorMissing  = errors.New("short code generator is required")
+	ErrShortCodeRetriesExhausted  = errors.New("short code generation retries exhausted")
+	ErrOwnerRequired              = errors.New("URL owner is required")
+	ErrOwnerRepositoryUnsupported = errors.New("URL repository does not support owner operations")
 )
 
 type ShortCodeGenerator interface {
