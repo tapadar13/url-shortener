@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: URL Shortener API
-  version: 0.2.0
+  version: 0.3.0
   description: |
     Create and manage short URLs, retrieve link statistics, and redirect visitors
     while atomically recording accesses.
@@ -118,6 +118,23 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '413':
           $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/me:
+    get:
+      summary: Retrieve the authenticated user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /shorten:
     get:
       summary: List the authenticated user’s short URLs
@@ -590,6 +607,7 @@ components:
         password:
           type: string
           minLength: 12
+          maxLength: 72
     AuthResponse:
       type: object
       required: [accessToken, refreshToken, tokenType, expiresAt, user]
@@ -605,11 +623,13 @@ components:
           type: string
           format: date-time
         user:
-          type: object
-          required: [id, email]
-          properties:
-            id: {type: string}
-            email: {type: string, format: email}
+          $ref: '#/components/schemas/AuthUser'
+    AuthUser:
+      type: object
+      required: [id, email]
+      properties:
+        id: {type: string}
+        email: {type: string, format: email}
     RefreshTokenRequest:
       type: object
       required: [refreshToken]
