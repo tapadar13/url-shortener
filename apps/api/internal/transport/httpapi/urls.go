@@ -100,7 +100,7 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 			if ownerUpdater, supported := updater.(OwnerURLUpdater); supported {
 				updated, err = ownerUpdater.UpdateLongURLForOwner(r.Context(), ownerID, params)
 			} else {
-				updated, err = updater.UpdateLongURL(r.Context(), params)
+				err = service.ErrOwnerRepositoryUnsupported
 			}
 		} else {
 			updated, err = updater.UpdateLongURL(r.Context(), params)
@@ -155,6 +155,7 @@ func findURLForRequest(r *http.Request, finder URLFinder) (urlmodel.URL, error) 
 		if ownerFinder, supported := finder.(OwnerURLFinder); supported {
 			return ownerFinder.GetByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
 		}
+		return urlmodel.URL{}, service.ErrOwnerRepositoryUnsupported
 	}
 	return finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
 }
@@ -164,6 +165,7 @@ func deleteURLForRequest(r *http.Request, deleter URLDeleter) error {
 		if ownerDeleter, supported := deleter.(OwnerURLDeleter); supported {
 			return ownerDeleter.DeleteByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
 		}
+		return service.ErrOwnerRepositoryUnsupported
 	}
 	return deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
 }
