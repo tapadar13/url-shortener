@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/tapadar13/url-shortener/apps/api/internal/auth"
 	"github.com/tapadar13/url-shortener/apps/api/internal/metrics"
 	"github.com/tapadar13/url-shortener/apps/api/internal/platform/httpserver"
 	"github.com/tapadar13/url-shortener/apps/api/internal/shortcode"
@@ -26,6 +28,28 @@ func TestRouterReturnsPayloadTooLargeForOversizedCreateRequest(t *testing.T) {
 	assertStatus(t, response, http.StatusRequestEntityTooLarge)
 	if len(creator.params) != 0 {
 		t.Fatal("expected oversized request to be rejected before URL creation")
+	}
+}
+
+func TestRouterRequiresAuthAndAssignsOwnerOnURLCreation(t *testing.T) {
+	creator := &fakeURLCreator{}
+	router := NewRouter(Dependencies{
+		URLCreator:          creator,
+		AccessTokenVerifier: fakeTokenVerifier{claims: auth.TokenClaims{UserID: "owner-1"}},
+	})
+
+	unauthorized := executeRequestWithBody(t, router, http.MethodPost, "/shorten", `{"url":"https://example.com"}`)
+	assertStatus(t, unauthorized, http.StatusUnauthorized)
+
+	request := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(`{"url":"https://example.com"}`))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected creation to succeed, got %d", response.Code)
+	}
+	if len(creator.params) != 1 || creator.params[0].OwnerID != "owner-1" {
+		t.Fatalf("expected authenticated owner, got %+v", creator.params)
 	}
 }
 
