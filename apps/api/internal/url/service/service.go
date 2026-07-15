@@ -45,6 +45,7 @@ type Service struct {
 
 type CreateParams struct {
 	LongURL   string
+	OwnerID   string
 	ExpiresAt *time.Time
 	ShortCode *string
 }
@@ -99,6 +100,7 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (urlmodel.URL
 	if params.ShortCode != nil {
 		record, err := urlmodel.New(urlmodel.NewParams{
 			LongURL:   params.LongURL,
+			OwnerID:   params.OwnerID,
 			ShortCode: *params.ShortCode,
 			Now:       s.now(),
 			ExpiresAt: params.ExpiresAt,
