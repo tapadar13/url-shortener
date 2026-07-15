@@ -47,7 +47,7 @@ func newGetURLAnalyticsHandler(
 			return
 		}
 
-		if _, err := finder.GetByShortCode(r.Context(), rangeValue.ShortCode); err != nil {
+		if _, err := findURLForRequest(r, finder); err != nil {
 			writeShortCodeURLError(w, err)
 			return
 		}

@@ -28,6 +28,7 @@ deploy/
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
 - Prometheus-compatible request metrics grouped by route and status class
+- Email/password authentication with Bearer access tokens, rotating refresh sessions, logout, and URL ownership
 - Graceful API shutdown with MongoDB, Redis, access-recorder, and analytics-recorder lifecycle management
 
 ## Prerequisites
@@ -108,7 +109,27 @@ Every API response also includes a server-generated `X-Request-ID` header. Use i
 
 When rate limiting is enabled, non-probe requests include `X-RateLimit-Limit`, `X-RateLimit-Remaining`, and `X-RateLimit-Reset`. Exceeded requests return `429 Too Many Requests` with `Retry-After`. Health checks, readiness checks, and CORS preflights do not consume quota.
 
+URL management, statistics, analytics, and listing endpoints require a Bearer access token. Redirects remain public.
+
 Clients are identified from the direct socket address by default. When `TRUSTED_PROXY_CIDRS` is configured, `X-Forwarded-For` is accepted only from a trusted socket peer and the proxy chain is evaluated from right to left, preventing clients from bypassing limits with spoofed values.
+
+### Authentication
+
+```http
+POST /auth/register
+POST /auth/login
+POST /auth/refresh
+POST /auth/logout
+GET /auth/me
+```
+
+Registration and login accept `email` and a password from 12 characters up to bcrypt's 72-byte limit. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials, or to `/auth/logout` to revoke the active session. Use `/auth/me` with the Bearer token to restore the current user when the frontend starts.
+
+```bash
+curl -i http://localhost:8080/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"user@example.com","password":"correct horse battery staple"}'
+```
 
 ### Create a Short URL
 
@@ -144,6 +165,15 @@ curl -i http://localhost:8080/shorten \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com/articles/123","expiresAt":"2026-08-12T08:00:00Z","shortCode":"summer2026"}'
 ```
+
+### List My Short URLs
+
+```http
+GET /shorten?limit=25
+Authorization: Bearer <access-token>
+```
+
+Returns the authenticated user’s newest short URLs. `limit` defaults to `25` and must be between `1` and `100`.
 
 Omit `shortCode` to have the service generate one. Custom codes must be 4-32 Base62 characters, cannot use reserved route names, and return `409 Conflict` when already taken.
 
@@ -318,6 +348,8 @@ curl -i http://localhost:8080/metrics
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
 | `MONGODB_DATABASE` | `url_shortener` | MongoDB database name |
 | `MONGODB_URLS_COLLECTION` | `urls` | Collection containing short URLs |
+| `MONGODB_USERS_COLLECTION` | `users` | Collection containing registered users |
+| `MONGODB_SESSIONS_COLLECTION` | `sessions` | Collection containing hashed refresh sessions |
 | `MONGODB_RATE_LIMITS_COLLECTION` | `rate_limits` | Collection containing distributed rate-limit counters |
 | `MONGODB_ANALYTICS_COLLECTION` | `click_analytics` | Collection containing per-link UTC daily click aggregates |
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis connection URL; `rediss://` enables TLS |
@@ -336,6 +368,11 @@ curl -i http://localhost:8080/metrics
 | `ANALYTICS_WRITE_TIMEOUT` | `5s` | MongoDB deadline for each queued analytics update |
 | `RATE_LIMIT_REQUESTS` | `60` | Maximum requests from one client in a rate-limit window; `0` disables limiting |
 | `RATE_LIMIT_WINDOW` | `1m` | Fixed window used for request rate limiting |
+| `AUTH_TOKEN_SECRET` | development-only value | HMAC secret; production requires a non-default value of at least 32 characters |
+| `AUTH_TOKEN_ISSUER` | `url-shortener` | Access-token issuer claim |
+| `AUTH_TOKEN_AUDIENCE` | `url-shortener-api` | Access-token audience claim |
+| `AUTH_TOKEN_TTL` | `15m` | Access-token lifetime |
+| `AUTH_REFRESH_TOKEN_TTL` | `720h` | Refresh-session lifetime |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, or `error` |
 | `LOG_FORMAT` | `text` | `text` or `json` |
 | `REQUEST_TIMEOUT` | `10s` | HTTP request deadline, socket timeout, and MongoDB connection timeout |

@@ -10,6 +10,7 @@ import (
 
 type urlDocument struct {
 	ID             bson.ObjectID `bson:"_id,omitempty"`
+	OwnerID        string        `bson:"owner_id,omitempty"`
 	LongURL        string        `bson:"url"`
 	ShortCode      string        `bson:"short_code"`
 	AccessCount    int64         `bson:"access_count"`
@@ -32,6 +33,7 @@ func newURLDocument(record urlmodel.URL) (urlDocument, error) {
 
 	return urlDocument{
 		ID:             id,
+		OwnerID:        record.OwnerID,
 		LongURL:        record.LongURL,
 		ShortCode:      record.ShortCode,
 		AccessCount:    record.AccessCount,
@@ -45,6 +47,7 @@ func newURLDocument(record urlmodel.URL) (urlDocument, error) {
 func (doc urlDocument) toDomain() (urlmodel.URL, error) {
 	record := urlmodel.URL{
 		ID:             doc.ID.Hex(),
+		OwnerID:        doc.OwnerID,
 		LongURL:        doc.LongURL,
 		ShortCode:      doc.ShortCode,
 		AccessCount:    doc.AccessCount,

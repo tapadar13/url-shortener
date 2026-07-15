@@ -16,9 +16,11 @@ const (
 )
 
 var (
-	ErrRepositoryRequired        = errors.New("URL repository is required")
-	ErrShortCodeGeneratorMissing = errors.New("short code generator is required")
-	ErrShortCodeRetriesExhausted = errors.New("short code generation retries exhausted")
+	ErrRepositoryRequired         = errors.New("URL repository is required")
+	ErrShortCodeGeneratorMissing  = errors.New("short code generator is required")
+	ErrShortCodeRetriesExhausted  = errors.New("short code generation retries exhausted")
+	ErrOwnerRequired              = errors.New("URL owner is required")
+	ErrOwnerRepositoryUnsupported = errors.New("URL repository does not support owner operations")
 )
 
 type ShortCodeGenerator interface {
@@ -45,6 +47,7 @@ type Service struct {
 
 type CreateParams struct {
 	LongURL   string
+	OwnerID   string
 	ExpiresAt *time.Time
 	ShortCode *string
 }
@@ -99,6 +102,7 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (urlmodel.URL
 	if params.ShortCode != nil {
 		record, err := urlmodel.New(urlmodel.NewParams{
 			LongURL:   params.LongURL,
+			OwnerID:   params.OwnerID,
 			ShortCode: *params.ShortCode,
 			Now:       s.now(),
 			ExpiresAt: params.ExpiresAt,

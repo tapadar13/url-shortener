@@ -25,6 +25,10 @@ type findOneAndUpdateCollection interface {
 	FindOneAndUpdate(ctx context.Context, filter any, update any, opts ...options.Lister[options.FindOneAndUpdateOptions]) *mongo.SingleResult
 }
 
+type findCollection interface {
+	Find(context.Context, any, ...options.Lister[options.FindOptions]) (*mongo.Cursor, error)
+}
+
 type deleteOneCollection interface {
 	DeleteOne(ctx context.Context, filter any, opts ...options.Lister[options.DeleteOneOptions]) (*mongo.DeleteResult, error)
 }
@@ -34,6 +38,43 @@ type collection interface {
 	findOneCollection
 	findOneAndUpdateCollection
 	deleteOneCollection
+}
+
+func (r *Repository) ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error) {
+	if r == nil || r.collection == nil {
+		return nil, errors.New("MongoDB URL collection is required")
+	}
+	if ownerID == "" {
+		return nil, errors.New("URL owner is required")
+	}
+	if limit <= 0 || limit > 100 {
+		return nil, errors.New("URL list limit must be between 1 and 100")
+	}
+	findCollection, ok := r.collection.(findCollection)
+	if !ok {
+		return nil, errors.New("MongoDB URL collection does not support listing")
+	}
+	cursor, err := findCollection.Find(ctx, bson.M{"owner_id": ownerID}, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}).SetLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("find URLs by owner: %w", err)
+	}
+	if cursor == nil {
+		return nil, errors.New("find URLs by owner: missing cursor")
+	}
+	defer cursor.Close(ctx)
+	var documents []urlDocument
+	if err := cursor.All(ctx, &documents); err != nil {
+		return nil, fmt.Errorf("decode URLs by owner: %w", err)
+	}
+	result := make([]urlmodel.URL, 0, len(documents))
+	for _, document := range documents {
+		record, err := document.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, nil
 }
 
 type Repository struct {
@@ -107,6 +148,14 @@ func (r *Repository) Create(ctx context.Context, record urlmodel.URL) (urlmodel.
 }
 
 func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error) {
+	return r.findByShortCode(ctx, shortCode, "")
+}
+
+func (r *Repository) FindByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) (urlmodel.URL, error) {
+	return r.findByShortCode(ctx, shortCode, ownerID)
+}
+
+func (r *Repository) findByShortCode(ctx context.Context, shortCode, ownerID string) (urlmodel.URL, error) {
 	if r == nil || r.collection == nil {
 		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
 	}
@@ -116,7 +165,11 @@ func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (url
 		return urlmodel.URL{}, err
 	}
 
-	result := r.collection.FindOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
+	result := r.collection.FindOne(ctx, filter)
 	if result == nil {
 		return urlmodel.URL{}, errors.New("find URL by short code: missing result")
 	}
@@ -137,6 +190,14 @@ func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (url
 }
 
 func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLongURLParams) (urlmodel.URL, error) {
+	return r.updateLongURL(ctx, params, "")
+}
+
+func (r *Repository) UpdateLongURLForOwner(ctx context.Context, params urlmodel.UpdateLongURLParams, ownerID string) (urlmodel.URL, error) {
+	return r.updateLongURL(ctx, params, ownerID)
+}
+
+func (r *Repository) updateLongURL(ctx context.Context, params urlmodel.UpdateLongURLParams, ownerID string) (urlmodel.URL, error) {
 	if r == nil || r.collection == nil {
 		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
 	}
@@ -156,9 +217,13 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 	}
 
 	updatedAt := params.UpdatedAt.UTC()
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
 	result := r.collection.FindOneAndUpdate(
 		ctx,
-		r.activeShortCodeFilter(normalizedShortCode),
+		filter,
 		bson.D{{Key: "$set", Value: bson.D{
 			{Key: "url", Value: normalizedLongURL},
 			{Key: "updated_at", Value: updatedAt},
@@ -185,6 +250,14 @@ func (r *Repository) UpdateLongURL(ctx context.Context, params urlmodel.UpdateLo
 }
 
 func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) error {
+	return r.deleteByShortCode(ctx, shortCode, "")
+}
+
+func (r *Repository) DeleteByShortCodeForOwner(ctx context.Context, shortCode, ownerID string) error {
+	return r.deleteByShortCode(ctx, shortCode, ownerID)
+}
+
+func (r *Repository) deleteByShortCode(ctx context.Context, shortCode, ownerID string) error {
 	if r == nil || r.collection == nil {
 		return errors.New("MongoDB URL collection is required")
 	}
@@ -194,7 +267,11 @@ func (r *Repository) DeleteByShortCode(ctx context.Context, shortCode string) er
 		return err
 	}
 
-	result, err := r.collection.DeleteOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
+	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("delete URL by short code: %w", err)
 	}

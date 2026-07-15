@@ -16,16 +16,32 @@ type URLCreator interface {
 	Create(ctx context.Context, params service.CreateParams) (urlmodel.URL, error)
 }
 
+type URLLister interface {
+	ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error)
+}
+
 type URLFinder interface {
 	GetByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error)
+}
+
+type OwnerURLFinder interface {
+	GetByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) (urlmodel.URL, error)
 }
 
 type URLUpdater interface {
 	UpdateLongURL(ctx context.Context, params service.UpdateParams) (urlmodel.URL, error)
 }
 
+type OwnerURLUpdater interface {
+	UpdateLongURLForOwner(ctx context.Context, ownerID string, params service.UpdateParams) (urlmodel.URL, error)
+}
+
 type URLDeleter interface {
 	DeleteByShortCode(ctx context.Context, shortCode string) error
+}
+
+type OwnerURLDeleter interface {
+	DeleteByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) error
 }
 
 type URLRedirector interface {
@@ -37,16 +53,21 @@ type URLAnalyticsReporter interface {
 }
 
 type Dependencies struct {
-	ReadinessChecker   ReadinessChecker
-	URLCreator         URLCreator
-	URLFinder          URLFinder
-	URLUpdater         URLUpdater
-	URLDeleter         URLDeleter
-	URLRedirector      URLRedirector
-	AnalyticsReporter  URLAnalyticsReporter
-	AnalyticsNow       func() time.Time
-	Metrics            *metrics.Metrics
-	RedirectStatusCode int
+	ReadinessChecker    ReadinessChecker
+	URLCreator          URLCreator
+	URLLister           URLLister
+	URLFinder           URLFinder
+	URLUpdater          URLUpdater
+	URLDeleter          URLDeleter
+	URLRedirector       URLRedirector
+	AnalyticsReporter   URLAnalyticsReporter
+	AnalyticsNow        func() time.Time
+	Metrics             *metrics.Metrics
+	AuthService         AuthService
+	AccessTokenIssuer   AccessTokenIssuer
+	AccessTokenVerifier AccessTokenVerifier
+	RefreshSessions     RefreshSessionManager
+	RedirectStatusCode  int
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -62,29 +83,49 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	if dependencies.Metrics != nil {
 		router.Get("/metrics", newMetricsHandler(dependencies.Metrics))
 	}
+	if dependencies.AuthService != nil && dependencies.AccessTokenIssuer != nil {
+		router.Post("/auth/register", newRegisterHandler(dependencies.AuthService, dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+		router.Post("/auth/login", newLoginHandler(dependencies.AuthService, dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+		if dependencies.RefreshSessions != nil {
+			router.Post("/auth/refresh", newRefreshHandler(dependencies.AccessTokenIssuer, dependencies.RefreshSessions))
+			router.Post("/auth/logout", newLogoutHandler(dependencies.RefreshSessions))
+		}
+	}
+	if dependencies.AuthService != nil && dependencies.AccessTokenVerifier != nil {
+		router.With(RequireAuth(dependencies.AccessTokenVerifier)).Get("/auth/me", newCurrentUserHandler(dependencies.AuthService))
+	}
 
 	if dependencies.URLCreator != nil {
-		router.Post("/shorten", newCreateURLHandler(dependencies.URLCreator))
+		createHandler := newCreateURLHandler(dependencies.URLCreator)
+		if dependencies.AccessTokenVerifier != nil {
+			router.With(RequireAuth(dependencies.AccessTokenVerifier)).Post("/shorten", createHandler)
+		} else {
+			router.Post("/shorten", createHandler)
+		}
+	}
+	if dependencies.URLLister != nil {
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten", newListURLHandler(dependencies.URLLister))
 	}
 
 	if dependencies.URLFinder != nil {
 		if dependencies.AnalyticsReporter != nil {
-			router.Get("/shorten/{shortCode}/analytics", newGetURLAnalyticsHandler(
+			analyticsHandler := newGetURLAnalyticsHandler(
 				dependencies.URLFinder,
 				dependencies.AnalyticsReporter,
 				dependencies.AnalyticsNow,
-			))
+			)
+			registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/analytics", analyticsHandler)
 		}
-		router.Get("/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
-		router.Get("/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
 	}
 
 	if dependencies.URLUpdater != nil {
-		router.Put("/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodPut, "/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
 	}
 
 	if dependencies.URLDeleter != nil {
-		router.Delete("/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodDelete, "/shorten/{shortCode}", newDeleteURLHandler(dependencies.URLDeleter))
 	}
 
 	if dependencies.URLRedirector != nil {
@@ -92,6 +133,14 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	return router
+}
+
+func registerManagementRoute(router *chi.Mux, verifier AccessTokenVerifier, method, path string, handler http.HandlerFunc) {
+	if verifier != nil {
+		router.With(RequireAuth(verifier)).MethodFunc(method, path, handler)
+		return
+	}
+	router.MethodFunc(method, path, handler)
 }
 
 func handleNotFound(w http.ResponseWriter, _ *http.Request) {

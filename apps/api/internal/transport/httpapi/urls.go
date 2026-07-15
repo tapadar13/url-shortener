@@ -49,7 +49,7 @@ type urlStatsResponse struct {
 func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request createURLRequest
-		if err := decodeURLRequest(w, r, &request); err != nil {
+		if err := decodeJSONRequest(r, &request); err != nil {
 			if isRequestBodyTooLarge(err) {
 				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
 				return
@@ -60,6 +60,7 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 
 		created, err := creator.Create(r.Context(), service.CreateParams{
 			LongURL:   request.URL,
+			OwnerID:   currentOwnerID(r.Context()),
 			ExpiresAt: request.ExpiresAt,
 			ShortCode: request.ShortCode,
 		})
@@ -72,10 +73,15 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 	}
 }
 
+func currentOwnerID(ctx context.Context) string {
+	ownerID, _ := CurrentUserID(ctx)
+	return ownerID
+}
+
 func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request updateURLRequest
-		if err := decodeURLRequest(w, r, &request); err != nil {
+		if err := decodeJSONRequest(r, &request); err != nil {
 			if isRequestBodyTooLarge(err) {
 				writeError(w, http.StatusRequestEntityTooLarge, "request_entity_too_large", "request body exceeds the configured size limit")
 				return
@@ -84,10 +90,21 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 			return
 		}
 
-		updated, err := updater.UpdateLongURL(r.Context(), service.UpdateParams{
+		params := service.UpdateParams{
 			ShortCode: chi.URLParam(r, "shortCode"),
 			LongURL:   request.URL,
-		})
+		}
+		var updated urlmodel.URL
+		var err error
+		if ownerID, ok := CurrentUserID(r.Context()); ok {
+			if ownerUpdater, supported := updater.(OwnerURLUpdater); supported {
+				updated, err = ownerUpdater.UpdateLongURLForOwner(r.Context(), ownerID, params)
+			} else {
+				err = service.ErrOwnerRepositoryUnsupported
+			}
+		} else {
+			updated, err = updater.UpdateLongURL(r.Context(), params)
+		}
 		if err != nil {
 			writeUpdateURLError(w, err)
 			return
@@ -99,7 +116,7 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 
 func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		found, err := findURLForRequest(r, finder)
 		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
@@ -111,7 +128,7 @@ func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 
 func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		found, err := finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+		found, err := findURLForRequest(r, finder)
 		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
@@ -123,13 +140,34 @@ func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
 
 func newDeleteURLHandler(deleter URLDeleter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode")); err != nil {
+		err := deleteURLForRequest(r, deleter)
+		if err != nil {
 			writeShortCodeURLError(w, err)
 			return
 		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func findURLForRequest(r *http.Request, finder URLFinder) (urlmodel.URL, error) {
+	if ownerID, ok := CurrentUserID(r.Context()); ok {
+		if ownerFinder, supported := finder.(OwnerURLFinder); supported {
+			return ownerFinder.GetByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
+		}
+		return urlmodel.URL{}, service.ErrOwnerRepositoryUnsupported
+	}
+	return finder.GetByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
+}
+
+func deleteURLForRequest(r *http.Request, deleter URLDeleter) error {
+	if ownerID, ok := CurrentUserID(r.Context()); ok {
+		if ownerDeleter, supported := deleter.(OwnerURLDeleter); supported {
+			return ownerDeleter.DeleteByShortCodeForOwner(r.Context(), ownerID, chi.URLParam(r, "shortCode"))
+		}
+		return service.ErrOwnerRepositoryUnsupported
+	}
+	return deleter.DeleteByShortCode(r.Context(), chi.URLParam(r, "shortCode"))
 }
 
 func newRedirectHandler(redirector URLRedirector, statusCode int) http.HandlerFunc {
@@ -173,7 +211,7 @@ func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
 	}
 }
 
-func decodeURLRequest(_ http.ResponseWriter, r *http.Request, request any) error {
+func decodeJSONRequest(r *http.Request, request any) error {
 	defer r.Body.Close()
 
 	decoder := json.NewDecoder(r.Body)

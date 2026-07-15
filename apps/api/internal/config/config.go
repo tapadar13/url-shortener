@@ -35,6 +35,7 @@ type Config struct {
 	RedirectCache       RedirectCacheConfig
 	Analytics           AnalyticsConfig
 	RateLimit           RateLimitConfig
+	Auth                AuthConfig
 	Log                 LogConfig
 	RequestTimeout      time.Duration
 	ShutdownTimeout     time.Duration
@@ -52,6 +53,8 @@ type MongoDBConfig struct {
 	URI                  string
 	Database             string
 	URLsCollection       string
+	UsersCollection      string
+	SessionsCollection   string
 	RateLimitsCollection string
 	AnalyticsCollection  string
 }
@@ -88,6 +91,14 @@ type AnalyticsConfig struct {
 type RateLimitConfig struct {
 	Requests int
 	Window   time.Duration
+}
+
+type AuthConfig struct {
+	TokenSecret     string
+	TokenIssuer     string
+	TokenAudience   string
+	TokenTTL        time.Duration
+	RefreshTokenTTL time.Duration
 }
 
 type LogConfig struct {
@@ -197,6 +208,16 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	authTokenTTL, err := durationValue(lookup, "AUTH_TOKEN_TTL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	authRefreshTokenTTL, err := durationValue(lookup, "AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
@@ -209,6 +230,8 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			URI:                  value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
 			Database:             value(lookup, "MONGODB_DATABASE", "url_shortener"),
 			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
+			UsersCollection:      value(lookup, "MONGODB_USERS_COLLECTION", "users"),
+			SessionsCollection:   value(lookup, "MONGODB_SESSIONS_COLLECTION", "sessions"),
 			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
 			AnalyticsCollection:  value(lookup, "MONGODB_ANALYTICS_COLLECTION", "click_analytics"),
 		},
@@ -239,6 +262,13 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		RateLimit: RateLimitConfig{
 			Requests: rateLimitRequests,
 			Window:   rateLimitWindow,
+		},
+		Auth: AuthConfig{
+			TokenSecret:     value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me-0123456789"),
+			TokenIssuer:     value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
+			TokenAudience:   value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
+			TokenTTL:        authTokenTTL,
+			RefreshTokenTTL: authRefreshTokenTTL,
 		},
 		Log: LogConfig{
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
@@ -287,6 +317,13 @@ func (cfg Config) Validate() error {
 
 	if strings.TrimSpace(cfg.MongoDB.URLsCollection) == "" {
 		errs = append(errs, errors.New("MONGODB_URLS_COLLECTION is required"))
+	}
+
+	if strings.TrimSpace(cfg.MongoDB.UsersCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_USERS_COLLECTION is required"))
+	}
+	if strings.TrimSpace(cfg.MongoDB.SessionsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_SESSIONS_COLLECTION is required"))
 	}
 
 	if strings.TrimSpace(cfg.MongoDB.RateLimitsCollection) == "" {
@@ -355,6 +392,22 @@ func (cfg Config) Validate() error {
 
 	if cfg.RateLimit.Window <= 0 {
 		errs = append(errs, errors.New("RATE_LIMIT_WINDOW must be greater than zero"))
+	}
+
+	if strings.TrimSpace(cfg.Auth.TokenSecret) == "" || len(cfg.Auth.TokenSecret) < 32 || (cfg.Environment == EnvironmentProduction && cfg.Auth.TokenSecret == "development-only-change-me-0123456789") {
+		errs = append(errs, errors.New("AUTH_TOKEN_SECRET must be at least 32 characters and non-default in production"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenIssuer) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_ISSUER is required"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenAudience) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_AUDIENCE is required"))
+	}
+	if cfg.Auth.TokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_TOKEN_TTL must be greater than zero"))
+	}
+	if cfg.Auth.RefreshTokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_REFRESH_TOKEN_TTL must be greater than zero"))
 	}
 
 	if !oneOf(cfg.Log.Level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError) {

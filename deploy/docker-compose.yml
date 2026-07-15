@@ -21,6 +21,8 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DATABASE: url_shortener
       MONGODB_URLS_COLLECTION: urls
+      MONGODB_USERS_COLLECTION: users
+      MONGODB_SESSIONS_COLLECTION: sessions
       MONGODB_RATE_LIMITS_COLLECTION: rate_limits
       MONGODB_ANALYTICS_COLLECTION: click_analytics
       REDIS_URL: redis://redis:6379/0
@@ -37,6 +39,11 @@ services:
       ANALYTICS_WORKERS: 2
       ANALYTICS_QUEUE_SIZE: 4096
       ANALYTICS_WRITE_TIMEOUT: 5s
+      AUTH_TOKEN_SECRET: replace-with-a-random-secret
+      AUTH_TOKEN_ISSUER: url-shortener
+      AUTH_TOKEN_AUDIENCE: url-shortener-api
+      AUTH_TOKEN_TTL: 15m
+      AUTH_REFRESH_TOKEN_TTL: 720h
       LOG_LEVEL: info
       LOG_FORMAT: json
       REQUEST_TIMEOUT: 10s
