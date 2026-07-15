@@ -16,8 +16,6 @@ export interface LinkRecord {
   expiresAt?: string
 }
 
-export interface LinkStats extends LinkRecord {}
-
 export interface LinkListPage {
   items: LinkRecord[]
   /** Opaque cursor for the next page, absent on the last page. */
