@@ -42,3 +42,18 @@ func TestSessionServiceRotatesRefreshToken(t *testing.T) {
 		t.Fatalf("unexpected rotation: revoked=%q rotated=%+v", repository.revoked, rotated)
 	}
 }
+
+func TestSessionServiceRevokesRefreshToken(t *testing.T) {
+	now := time.Date(2026, time.July, 15, 10, 0, 0, 0, time.UTC)
+	repository := &fakeSessionRepository{session: Session{ID: "session-1", UserID: "user-1"}}
+	service, err := newSessionService(repository, time.Hour, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("create session service: %v", err)
+	}
+	if err := service.Revoke(context.Background(), "refresh-token"); err != nil {
+		t.Fatalf("revoke session: %v", err)
+	}
+	if repository.revoked != "session-1" {
+		t.Fatalf("expected session to be revoked, got %q", repository.revoked)
+	}
+}
