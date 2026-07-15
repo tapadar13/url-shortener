@@ -28,6 +28,7 @@ deploy/
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
 - Prometheus-compatible request metrics grouped by route and status class
+- Email/password authentication with Bearer access tokens, rotating refresh sessions, logout, and URL ownership
 - Graceful API shutdown with MongoDB, Redis, access-recorder, and analytics-recorder lifecycle management
 
 ## Prerequisites
@@ -119,9 +120,10 @@ POST /auth/register
 POST /auth/login
 POST /auth/refresh
 POST /auth/logout
+GET /auth/me
 ```
 
-Registration and login accept `email` and a password of at least 12 characters. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials, or to `/auth/logout` to revoke the active session.
+Registration and login accept `email` and a password from 12 characters up to bcrypt's 72-byte limit. Successful responses contain a short-lived Bearer access token, an opaque refresh token, and sanitized user details. Send the refresh token to `/auth/refresh` to rotate it and receive replacement credentials, or to `/auth/logout` to revoke the active session. Use `/auth/me` with the Bearer token to restore the current user when the frontend starts.
 
 ```bash
 curl -i http://localhost:8080/auth/register \
