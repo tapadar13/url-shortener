@@ -25,6 +25,10 @@ type findOneAndUpdateCollection interface {
 	FindOneAndUpdate(ctx context.Context, filter any, update any, opts ...options.Lister[options.FindOneAndUpdateOptions]) *mongo.SingleResult
 }
 
+type findCollection interface {
+	Find(context.Context, any, ...options.Lister[options.FindOptions]) (*mongo.Cursor, error)
+}
+
 type deleteOneCollection interface {
 	DeleteOne(ctx context.Context, filter any, opts ...options.Lister[options.DeleteOneOptions]) (*mongo.DeleteResult, error)
 }
@@ -34,6 +38,43 @@ type collection interface {
 	findOneCollection
 	findOneAndUpdateCollection
 	deleteOneCollection
+}
+
+func (r *Repository) ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error) {
+	if r == nil || r.collection == nil {
+		return nil, errors.New("MongoDB URL collection is required")
+	}
+	if ownerID == "" {
+		return nil, errors.New("URL owner is required")
+	}
+	if limit <= 0 || limit > 100 {
+		return nil, errors.New("URL list limit must be between 1 and 100")
+	}
+	findCollection, ok := r.collection.(findCollection)
+	if !ok {
+		return nil, errors.New("MongoDB URL collection does not support listing")
+	}
+	cursor, err := findCollection.Find(ctx, bson.M{"owner_id": ownerID}, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}).SetLimit(limit))
+	if err != nil {
+		return nil, fmt.Errorf("find URLs by owner: %w", err)
+	}
+	if cursor == nil {
+		return nil, errors.New("find URLs by owner: missing cursor")
+	}
+	defer cursor.Close(ctx)
+	var documents []urlDocument
+	if err := cursor.All(ctx, &documents); err != nil {
+		return nil, fmt.Errorf("decode URLs by owner: %w", err)
+	}
+	result := make([]urlmodel.URL, 0, len(documents))
+	for _, document := range documents {
+		record, err := document.toDomain()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, record)
+	}
+	return result, nil
 }
 
 type Repository struct {
