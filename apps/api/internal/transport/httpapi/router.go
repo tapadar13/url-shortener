@@ -16,6 +16,10 @@ type URLCreator interface {
 	Create(ctx context.Context, params service.CreateParams) (urlmodel.URL, error)
 }
 
+type URLLister interface {
+	ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error)
+}
+
 type URLFinder interface {
 	GetByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error)
 }
@@ -51,6 +55,7 @@ type URLAnalyticsReporter interface {
 type Dependencies struct {
 	ReadinessChecker    ReadinessChecker
 	URLCreator          URLCreator
+	URLLister           URLLister
 	URLFinder           URLFinder
 	URLUpdater          URLUpdater
 	URLDeleter          URLDeleter
@@ -89,6 +94,9 @@ func NewRouter(dependencies Dependencies) http.Handler {
 		} else {
 			router.Post("/shorten", createHandler)
 		}
+	}
+	if dependencies.URLLister != nil {
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten", newListURLHandler(dependencies.URLLister))
 	}
 
 	if dependencies.URLFinder != nil {

@@ -77,6 +77,10 @@ func run(ctx context.Context) error {
 	)
 
 	urlRepository := urlrepository.New(mongoClient.URLsCollection())
+	urlListService, err := service.NewListService(urlRepository)
+	if err != nil {
+		return fmt.Errorf("create URL list service: %w", err)
+	}
 	authRepository := authrepository.New(mongoClient.UsersCollection())
 	authService, err := auth.NewService(authRepository)
 	if err != nil {
@@ -249,6 +253,7 @@ func run(ctx context.Context) error {
 	handler := httpapi.NewRouter(httpapi.Dependencies{
 		ReadinessChecker:    mongoClient,
 		URLCreator:          urlCreator,
+		URLLister:           urlListService,
 		URLFinder:           urlFinder,
 		URLUpdater:          urlUpdater,
 		URLDeleter:          urlDeleter,
