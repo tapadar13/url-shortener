@@ -12,6 +12,7 @@ import (
 
 const (
 	ShortCodeIndexName           = "uniq_urls_short_code"
+	UserEmailIndexName           = "uniq_users_email"
 	CreatedAtIndexName           = "idx_urls_created_at"
 	ExpirationIndexName          = "ttl_urls_expires_at"
 	RateLimitExpirationIndexName = "ttl_rate_limits_expires_at"
@@ -30,6 +31,14 @@ func EnsureIndexes(ctx context.Context, client *Client) error {
 
 	if _, err := urlsCollection.Indexes().CreateMany(ctx, URLIndexModels()); err != nil {
 		return fmt.Errorf("create URL indexes: %w", err)
+	}
+
+	usersCollection := client.UsersCollection()
+	if usersCollection == nil {
+		return errors.New("users collection is required")
+	}
+	if _, err := usersCollection.Indexes().CreateMany(ctx, UserIndexModels()); err != nil {
+		return fmt.Errorf("create user indexes: %w", err)
 	}
 
 	rateLimitsCollection := client.RateLimitsCollection()
@@ -51,6 +60,13 @@ func EnsureIndexes(ctx context.Context, client *Client) error {
 	}
 
 	return nil
+}
+
+func UserIndexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetName(UserEmailIndexName).SetUnique(true),
+	}}
 }
 
 func AnalyticsIndexModels() []mongo.IndexModel {
