@@ -152,7 +152,7 @@ func writeAuthDecodeError(w http.ResponseWriter, err error) {
 }
 
 func writeAuthError(w http.ResponseWriter, err error, login bool) {
-	if login || errors.Is(err, auth.ErrInvalidCredentials) {
+	if errors.Is(err, auth.ErrInvalidCredentials) {
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "email or password is invalid")
 		return
 	}
@@ -160,5 +160,17 @@ func writeAuthError(w http.ResponseWriter, err error, login bool) {
 		writeError(w, http.StatusConflict, "email_taken", "email is already registered")
 		return
 	}
-	writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+	if !login && isAuthValidationError(err) {
+		writeError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "internal_error", "an unexpected error occurred")
+}
+
+func isAuthValidationError(err error) bool {
+	return errors.Is(err, auth.ErrEmailRequired) ||
+		errors.Is(err, auth.ErrEmailInvalid) ||
+		errors.Is(err, auth.ErrPasswordRequired) ||
+		errors.Is(err, auth.ErrPasswordTooShort) ||
+		errors.Is(err, auth.ErrPasswordTooLong)
 }

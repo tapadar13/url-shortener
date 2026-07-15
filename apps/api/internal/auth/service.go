@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -67,10 +68,16 @@ func (s *Service) Authenticate(ctx context.Context, email, password string) (Use
 	}
 	user, err := s.repository.FindUserByEmail(ctx, normalizedEmail)
 	if err != nil {
-		return User{}, ErrInvalidCredentials
+		if errors.Is(err, ErrUserNotFound) {
+			return User{}, ErrInvalidCredentials
+		}
+		return User{}, fmt.Errorf("find user for authentication: %w", err)
 	}
 	if err := ComparePassword(password, user.PasswordHash); err != nil {
-		return User{}, ErrInvalidCredentials
+		if errors.Is(err, ErrPasswordMismatch) || errors.Is(err, ErrPasswordRequired) || errors.Is(err, ErrPasswordTooShort) || errors.Is(err, ErrPasswordTooLong) {
+			return User{}, ErrInvalidCredentials
+		}
+		return User{}, fmt.Errorf("verify stored password: %w", err)
 	}
 	return user, nil
 }
