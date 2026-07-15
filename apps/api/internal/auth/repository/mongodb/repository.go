@@ -30,6 +30,10 @@ func New(collection *mongo.Collection) *Repository {
 	return &Repository{collection: collection}
 }
 
+func NewSessionRepository(collection *mongo.Collection) *Repository {
+	return New(collection)
+}
+
 func newRepository(collection collection) *Repository {
 	return &Repository{collection: collection}
 }

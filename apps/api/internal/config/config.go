@@ -54,6 +54,7 @@ type MongoDBConfig struct {
 	Database             string
 	URLsCollection       string
 	UsersCollection      string
+	SessionsCollection   string
 	RateLimitsCollection string
 	AnalyticsCollection  string
 }
@@ -224,6 +225,7 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 			Database:             value(lookup, "MONGODB_DATABASE", "url_shortener"),
 			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
 			UsersCollection:      value(lookup, "MONGODB_USERS_COLLECTION", "users"),
+			SessionsCollection:   value(lookup, "MONGODB_SESSIONS_COLLECTION", "sessions"),
 			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
 			AnalyticsCollection:  value(lookup, "MONGODB_ANALYTICS_COLLECTION", "click_analytics"),
 		},
@@ -312,6 +314,9 @@ func (cfg Config) Validate() error {
 
 	if strings.TrimSpace(cfg.MongoDB.UsersCollection) == "" {
 		errs = append(errs, errors.New("MONGODB_USERS_COLLECTION is required"))
+	}
+	if strings.TrimSpace(cfg.MongoDB.SessionsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_SESSIONS_COLLECTION is required"))
 	}
 
 	if strings.TrimSpace(cfg.MongoDB.RateLimitsCollection) == "" {

@@ -13,6 +13,8 @@ import (
 const (
 	ShortCodeIndexName           = "uniq_urls_short_code"
 	UserEmailIndexName           = "uniq_users_email"
+	SessionTokenHashIndexName    = "uniq_sessions_token_hash"
+	SessionExpirationIndexName   = "ttl_sessions_expires_at"
 	OwnerCreatedAtIndexName      = "idx_urls_owner_created_at"
 	CreatedAtIndexName           = "idx_urls_created_at"
 	ExpirationIndexName          = "ttl_urls_expires_at"
@@ -41,6 +43,13 @@ func EnsureIndexes(ctx context.Context, client *Client) error {
 	if _, err := usersCollection.Indexes().CreateMany(ctx, UserIndexModels()); err != nil {
 		return fmt.Errorf("create user indexes: %w", err)
 	}
+	sessionsCollection := client.SessionsCollection()
+	if sessionsCollection == nil {
+		return errors.New("sessions collection is required")
+	}
+	if _, err := sessionsCollection.Indexes().CreateMany(ctx, SessionIndexModels()); err != nil {
+		return fmt.Errorf("create session indexes: %w", err)
+	}
 
 	rateLimitsCollection := client.RateLimitsCollection()
 	if rateLimitsCollection == nil {
@@ -68,6 +77,13 @@ func UserIndexModels() []mongo.IndexModel {
 		Keys:    bson.D{{Key: "email", Value: 1}},
 		Options: options.Index().SetName(UserEmailIndexName).SetUnique(true),
 	}}
+}
+
+func SessionIndexModels() []mongo.IndexModel {
+	return []mongo.IndexModel{
+		{Keys: bson.D{{Key: "token_hash", Value: 1}}, Options: options.Index().SetName(SessionTokenHashIndexName).SetUnique(true)},
+		{Keys: bson.D{{Key: "expires_at", Value: 1}}, Options: options.Index().SetName(SessionExpirationIndexName).SetExpireAfterSeconds(0)},
+	}
 }
 
 func AnalyticsIndexModels() []mongo.IndexModel {
