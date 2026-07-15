@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -141,6 +142,43 @@ func TestRouterRejectsInvalidLogoutSession(t *testing.T) {
 	response := executeRequestWithBody(t, router, http.MethodPost, "/auth/logout", `{"refreshToken":"invalid"}`)
 	assertStatus(t, response, http.StatusUnauthorized)
 	assertAuthErrorCode(t, response, "invalid_refresh_token")
+}
+
+func TestRouterReturnsCurrentUser(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:         &fakeAuthService{user: UserAuthTestUser{ID: "user-1", Email: "user@example.com"}},
+		AccessTokenIssuer:   &fakeAccessTokenIssuer{},
+		AccessTokenVerifier: fakeTokenVerifier{claims: auth.TokenClaims{UserID: "user-1"}},
+	})
+	request := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	request.Header.Set("Authorization", "Bearer signed-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected current user response, got %d", response.Code)
+	}
+	var body userAuthResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode current user: %v", err)
+	}
+	if body.ID != "user-1" || body.Email != "user@example.com" {
+		t.Fatalf("unexpected current user: %+v", body)
+	}
+}
+
+func TestRouterRejectsMissingCurrentUser(t *testing.T) {
+	router := NewRouter(Dependencies{
+		AuthService:         &fakeAuthService{err: auth.ErrUserNotFound},
+		AccessTokenIssuer:   &fakeAccessTokenIssuer{},
+		AccessTokenVerifier: fakeTokenVerifier{claims: auth.TokenClaims{UserID: "deleted-user"}},
+	})
+	request := httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	request.Header.Set("Authorization", "Bearer signed-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected missing user to be unauthorized, got %d", response.Code)
+	}
 }
 
 func TestRouterHidesLoginCredentialFailures(t *testing.T) {
