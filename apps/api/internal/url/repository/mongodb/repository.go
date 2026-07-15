@@ -107,6 +107,14 @@ func (r *Repository) Create(ctx context.Context, record urlmodel.URL) (urlmodel.
 }
 
 func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (urlmodel.URL, error) {
+	return r.findByShortCode(ctx, shortCode, "")
+}
+
+func (r *Repository) FindByShortCodeForOwner(ctx context.Context, ownerID, shortCode string) (urlmodel.URL, error) {
+	return r.findByShortCode(ctx, shortCode, ownerID)
+}
+
+func (r *Repository) findByShortCode(ctx context.Context, shortCode, ownerID string) (urlmodel.URL, error) {
 	if r == nil || r.collection == nil {
 		return urlmodel.URL{}, errors.New("MongoDB URL collection is required")
 	}
@@ -116,7 +124,11 @@ func (r *Repository) FindByShortCode(ctx context.Context, shortCode string) (url
 		return urlmodel.URL{}, err
 	}
 
-	result := r.collection.FindOne(ctx, r.activeShortCodeFilter(normalizedShortCode))
+	filter := r.activeShortCodeFilter(normalizedShortCode)
+	if ownerID != "" {
+		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
+	}
+	result := r.collection.FindOne(ctx, filter)
 	if result == nil {
 		return urlmodel.URL{}, errors.New("find URL by short code: missing result")
 	}
