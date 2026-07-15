@@ -21,6 +21,7 @@ services:
       MONGODB_URI: mongodb://mongodb:27017
       MONGODB_DATABASE: url_shortener
       MONGODB_URLS_COLLECTION: urls
+      MONGODB_USERS_COLLECTION: users
       MONGODB_RATE_LIMITS_COLLECTION: rate_limits
       MONGODB_ANALYTICS_COLLECTION: click_analytics
       REDIS_URL: redis://redis:6379/0
