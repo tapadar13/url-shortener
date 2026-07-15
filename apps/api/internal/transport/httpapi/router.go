@@ -46,6 +46,8 @@ type Dependencies struct {
 	AnalyticsReporter  URLAnalyticsReporter
 	AnalyticsNow       func() time.Time
 	Metrics            *metrics.Metrics
+	AuthService        AuthService
+	AccessTokenIssuer  AccessTokenIssuer
 	RedirectStatusCode int
 }
 
@@ -61,6 +63,10 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	router.Get("/readyz", newReadinessHandler(dependencies.ReadinessChecker))
 	if dependencies.Metrics != nil {
 		router.Get("/metrics", newMetricsHandler(dependencies.Metrics))
+	}
+	if dependencies.AuthService != nil && dependencies.AccessTokenIssuer != nil {
+		router.Post("/auth/register", newRegisterHandler(dependencies.AuthService, dependencies.AccessTokenIssuer))
+		router.Post("/auth/login", newLoginHandler(dependencies.AuthService, dependencies.AccessTokenIssuer))
 	}
 
 	if dependencies.URLCreator != nil {
