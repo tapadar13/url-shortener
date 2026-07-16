@@ -21,6 +21,17 @@ type ListCursor struct {
 	ID        string
 }
 
+type ListQuery struct {
+	OwnerID string
+	Limit   int64
+	After   *ListCursor
+}
+
+func (cursor ListCursor) Validate() error {
+	_, err := normalizeListCursor(cursor)
+	return err
+}
+
 type cursorPayload struct {
 	Version   int       `json:"v"`
 	CreatedAt time.Time `json:"createdAt"`
