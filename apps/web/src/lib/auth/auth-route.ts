@@ -1,8 +1,8 @@
+import { requestAPI } from "@/lib/api/client"
 import {
-  APIConnectionError,
-  APIRequestError,
-  requestAPI,
-} from "@/lib/api/client"
+  apiErrorResponse,
+  apiRouteErrorResponse,
+} from "@/lib/api/route-response"
 
 import { writeAuthSession } from "./session"
 import type { AuthCredentials, AuthResponse, AuthTokens } from "./types"
@@ -38,7 +38,7 @@ export function createAuthRoute(
     try {
       body = await request.json()
     } catch {
-      return errorResponse(
+      return apiErrorResponse(
         400,
         "invalid_request",
         "request body must be valid JSON"
@@ -46,7 +46,7 @@ export function createAuthRoute(
     }
 
     if (!isAuthCredentials(body)) {
-      return errorResponse(
+      return apiErrorResponse(
         400,
         "invalid_request",
         "email and password are required"
@@ -74,14 +74,7 @@ export function createAuthRoute(
         }
       )
     } catch (error) {
-      if (error instanceof APIRequestError) {
-        return errorResponse(error.status, error.code, error.message)
-      }
-      if (error instanceof APIConnectionError) {
-        return errorResponse(502, "api_unavailable", "API is unavailable")
-      }
-
-      return errorResponse(500, "internal_error", "authentication failed")
+      return apiRouteErrorResponse(error, "authentication failed")
     }
   }
 }
@@ -97,12 +90,5 @@ function isAuthCredentials(
   return (
     typeof candidate.email === "string" &&
     typeof candidate.password === "string"
-  )
-}
-
-function errorResponse(status: number, code: string, message: string): Response {
-  return Response.json(
-    { error: { code, message } },
-    { status, headers: { "Cache-Control": "no-store" } }
   )
 }
