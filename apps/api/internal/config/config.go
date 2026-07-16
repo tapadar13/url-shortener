@@ -297,8 +297,8 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("HTTP_ADDR is required"))
 	}
 
-	if !isHTTPURL(cfg.HTTP.BaseURL) {
-		errs = append(errs, errors.New("BASE_URL must be a valid http or https URL with a host"))
+	if !isHTTPBaseURL(cfg.HTTP.BaseURL) {
+		errs = append(errs, errors.New("BASE_URL must be a valid http or https URL without credentials, a query, or a fragment"))
 	}
 
 	for _, origin := range cfg.HTTP.AllowedOrigins {
@@ -534,13 +534,17 @@ func trimTrailingSlash(value string) string {
 	return strings.TrimRight(value, "/")
 }
 
-func isHTTPURL(value string) bool {
+func isHTTPBaseURL(value string) bool {
 	parsed, err := url.Parse(value)
 	if err != nil {
 		return false
 	}
 
-	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
+	return (parsed.Scheme == "http" || parsed.Scheme == "https") &&
+		parsed.Host != "" &&
+		parsed.User == nil &&
+		parsed.RawQuery == "" &&
+		parsed.Fragment == ""
 }
 
 func isHTTPOrigin(value string) bool {
