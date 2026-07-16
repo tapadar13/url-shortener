@@ -38,6 +38,26 @@ describe("AuthForm", () => {
     )
   })
 
+  it("returns to a protected destination after login", async () => {
+    vi.stubGlobal("fetch", successfulAuthFetch(200))
+    renderAuthForm("login", "/links?page=2")
+
+    fillCredentials()
+    fireEvent.submit(screen.getByRole("form", { name: "Log in" }))
+
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith("/links?page=2")
+    )
+  })
+
+  it("preserves the destination when switching auth modes", () => {
+    renderAuthForm("login", "/links?page=2")
+
+    expect(
+      screen.getByRole("link", { name: "Create an account" }).getAttribute("href")
+    ).toBe("/register?returnTo=%2Flinks%3Fpage%3D2")
+  })
+
   it("shows a sanitized API error", async () => {
     vi.stubGlobal(
       "fetch",
@@ -92,7 +112,7 @@ describe("AuthForm", () => {
   })
 })
 
-function renderAuthForm(mode: "login" | "register") {
+function renderAuthForm(mode: "login" | "register", returnTo?: string) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -102,7 +122,7 @@ function renderAuthForm(mode: "login" | "register") {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthForm mode={mode} />
+      <AuthForm mode={mode} returnTo={returnTo} />
     </QueryClientProvider>
   )
 }
