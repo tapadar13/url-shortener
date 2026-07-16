@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: URL Shortener API
-  version: 0.3.0
+  version: 0.4.0
   description: |
     Create and manage short URLs, retrieve link statistics, and redirect visitors
     while atomically recording accesses.
@@ -145,24 +145,32 @@ paths:
         - name: limit
           in: query
           required: false
+          description: Maximum number of short URLs to return.
           schema:
             type: integer
             minimum: 1
             maximum: 100
             default: 25
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor returned by the previous page.
+          schema:
+            type: string
+            minLength: 1
       responses:
         '200':
-          description: User short URLs
+          description: User short URLs ordered by creation time, newest first.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/URL'
+                $ref: '#/components/schemas/URLListPage'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
     post:
       summary: Create a short URL
@@ -704,6 +712,18 @@ components:
           type: string
           format: date-time
           description: Optional timestamp after which the link is unavailable.
+    URLListPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/URL'
+        nextCursor:
+          type: string
+          description: Opaque cursor for the next page. Omitted when no further results exist.
     URLStats:
       allOf:
         - $ref: '#/components/schemas/URL'
