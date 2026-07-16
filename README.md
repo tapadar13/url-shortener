@@ -18,6 +18,7 @@ deploy/
 
 - Collision-safe Base62 short-code generation backed by a unique MongoDB index
 - URL creation, retrieval, update, deletion, and statistics endpoints with optional custom codes
+- Canonical public short URLs generated from the deployment's configured base URL
 - Optional expiry timestamps with immediate expiry-aware reads and MongoDB TTL cleanup
 - Distributed fixed-window request rate limiting with atomic MongoDB counters
 - Optional Redis redirect cache with bounded asynchronous access recording
@@ -153,6 +154,7 @@ Successful response: `201 Created`
   "id": "507f1f77bcf86cd799439011",
   "url": "https://example.com/articles/123",
   "shortCode": "AbC1234",
+  "shortUrl": "http://localhost:8080/AbC1234",
   "createdAt": "2026-07-12T08:00:00Z",
   "updatedAt": "2026-07-12T08:00:00Z",
   "expiresAt": "2026-08-12T08:00:00Z"
@@ -182,6 +184,7 @@ Returns the authenticated user’s newest short URLs. `limit` defaults to `25` a
       "id": "507f1f77bcf86cd799439011",
       "url": "https://example.com/articles/123",
       "shortCode": "AbC1234",
+      "shortUrl": "http://localhost:8080/AbC1234",
       "createdAt": "2026-07-12T08:00:00Z",
       "updatedAt": "2026-07-12T08:00:00Z"
     }
@@ -260,6 +263,7 @@ Successful response: `200 OK`
   "id": "507f1f77bcf86cd799439011",
   "url": "https://example.com/articles/123",
   "shortCode": "AbC1234",
+  "shortUrl": "http://localhost:8080/AbC1234",
   "accessCount": 42,
   "createdAt": "2026-07-12T08:00:00Z",
   "updatedAt": "2026-07-12T08:00:00Z",
@@ -366,7 +370,7 @@ curl -i http://localhost:8080/metrics
 | --- | --- | --- |
 | `APP_ENV` | `development` | Application environment: `development`, `test`, or `production` |
 | `HTTP_ADDR` | `:8080` | HTTP bind address |
-| `BASE_URL` | `http://localhost:8080` | Validated public base URL reserved for future generated-link presentation |
+| `BASE_URL` | `http://localhost:8080` | Externally reachable redirect base used to construct canonical `shortUrl` values |
 | `CORS_ALLOWED_ORIGINS` | empty | Comma-separated HTTP(S) origins allowed to call the API from browsers |
 | `TRUSTED_PROXY_CIDRS` | empty | Comma-separated proxy CIDRs allowed to supply `X-Forwarded-For` client addresses |
 | `MONGODB_URI` | `mongodb://localhost:27017` | MongoDB connection URI |
