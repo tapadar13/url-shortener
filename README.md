@@ -175,6 +175,30 @@ Authorization: Bearer <access-token>
 
 Returns the authenticated user’s newest short URLs. `limit` defaults to `25` and must be between `1` and `100`.
 
+```json
+{
+  "items": [
+    {
+      "id": "507f1f77bcf86cd799439011",
+      "url": "https://example.com/articles/123",
+      "shortCode": "AbC1234",
+      "createdAt": "2026-07-12T08:00:00Z",
+      "updatedAt": "2026-07-12T08:00:00Z"
+    }
+  ],
+  "nextCursor": "eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTA3LTEyVDA4OjAwOjAwWiIsImlkIjoiNTA3ZjFmNzdiY2Y4NmNkNzk5NDM5MDExIn0"
+}
+```
+
+When `nextCursor` is present, pass it back unchanged to retrieve the next page:
+
+```http
+GET /shorten?limit=25&cursor=eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTA3LTEyVDA4OjAwOjAwWiIsImlkIjoiNTA3ZjFmNzdiY2Y4NmNkNzk5NDM5MDExIn0
+Authorization: Bearer <access-token>
+```
+
+The cursor is opaque and is omitted when there are no more results.
+
 Omit `shortCode` to have the service generate one. Custom codes must be 4-32 Base62 characters, cannot use reserved route names, and return `409 Conflict` when already taken.
 
 ### Retrieve a Short URL
