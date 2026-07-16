@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import { APIRequestError } from "@/lib/api/client"
 
+import { createRefreshCoordinator } from "./refresh-coordinator"
 import { requestAuthenticatedAPI } from "./authenticated-client"
 import type { RefreshResponse } from "./types"
 
@@ -37,27 +38,20 @@ describe("requestAuthenticatedAPI", () => {
         .mockRejectedValueOnce(
           new APIRequestError(401, "unauthorized", "expired")
         )
-        .mockResolvedValueOnce(refreshed)
         .mockResolvedValueOnce({ id: "user-1" }),
       readAccessToken: vi.fn().mockResolvedValue("expired-access-token"),
       readRefreshToken: vi.fn().mockResolvedValue("refresh-token"),
+      refreshSession: vi.fn().mockResolvedValue(refreshed),
     })
 
     await expect(
       requestAuthenticatedAPI("/auth/me", {}, dependencies)
     ).resolves.toEqual({ id: "user-1" })
 
-    expect(dependencies.request).toHaveBeenCalledTimes(3)
-    expect(dependencies.request).toHaveBeenNthCalledWith(
-      2,
-      "/auth/refresh",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ refreshToken: "refresh-token" }),
-      })
-    )
+    expect(dependencies.request).toHaveBeenCalledTimes(2)
+    expect(dependencies.refreshSession).toHaveBeenCalledWith("refresh-token")
     expect(dependencies.writeSession).toHaveBeenCalledWith(refreshed)
-    expect(authorizationHeader(dependencies.request, 2)).toBe(
+    expect(authorizationHeader(dependencies.request, 1)).toBe(
       "Bearer new-access-token"
     )
   })
@@ -66,16 +60,17 @@ describe("requestAuthenticatedAPI", () => {
     const dependencies = authDependencies({
       request: vi
         .fn()
-        .mockResolvedValueOnce(refreshed)
         .mockResolvedValueOnce({ items: [] }),
       readRefreshToken: vi.fn().mockResolvedValue("refresh-token"),
+      refreshSession: vi.fn().mockResolvedValue(refreshed),
     })
 
     await expect(
       requestAuthenticatedAPI("/shorten", {}, dependencies)
     ).resolves.toEqual({ items: [] })
 
-    expect(dependencies.request).toHaveBeenCalledTimes(2)
+    expect(dependencies.request).toHaveBeenCalledOnce()
+    expect(dependencies.refreshSession).toHaveBeenCalledWith("refresh-token")
     expect(dependencies.writeSession).toHaveBeenCalledWith(refreshed)
   })
 
@@ -92,7 +87,7 @@ describe("requestAuthenticatedAPI", () => {
 
   it("clears and normalizes an invalid refresh session", async () => {
     const dependencies = authDependencies({
-      request: vi
+      refreshSession: vi
         .fn()
         .mockRejectedValue(
           new APIRequestError(401, "invalid_refresh_token", "invalid")
@@ -122,6 +117,26 @@ describe("requestAuthenticatedAPI", () => {
     expect(dependencies.request).toHaveBeenCalledOnce()
     expect(dependencies.readRefreshToken).not.toHaveBeenCalled()
   })
+
+  it("shares a refresh rotation across concurrent authenticated requests", async () => {
+    const rotate = vi.fn().mockResolvedValue(refreshed)
+    const dependencies = authDependencies({
+      request: vi.fn().mockResolvedValue({ items: [] }),
+      readRefreshToken: vi.fn().mockResolvedValue("refresh-token"),
+      refreshSession: createRefreshCoordinator(rotate),
+    })
+
+    await expect(
+      Promise.all([
+        requestAuthenticatedAPI("/links", {}, dependencies),
+        requestAuthenticatedAPI("/links", {}, dependencies),
+      ])
+    ).resolves.toEqual([{ items: [] }, { items: [] }])
+
+    expect(rotate).toHaveBeenCalledOnce()
+    expect(dependencies.writeSession).toHaveBeenCalledTimes(2)
+    expect(dependencies.request).toHaveBeenCalledTimes(2)
+  })
 })
 
 function authDependencies(overrides: Record<string, unknown> = {}) {
@@ -129,6 +144,7 @@ function authDependencies(overrides: Record<string, unknown> = {}) {
     request: vi.fn(),
     readAccessToken: vi.fn().mockResolvedValue(undefined),
     readRefreshToken: vi.fn().mockResolvedValue(undefined),
+    refreshSession: vi.fn(),
     writeSession: vi.fn().mockResolvedValue(undefined),
     clearSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
