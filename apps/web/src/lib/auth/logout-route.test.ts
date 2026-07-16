@@ -34,6 +34,19 @@ describe("createLogoutRoute", () => {
     expect(dependencies.clearSession).toHaveBeenCalledOnce()
   })
 
+  it("rejects a cross-origin request before reading the session", async () => {
+    const dependencies = logoutDependencies()
+
+    const response = await createLogoutRoute(dependencies)(
+      logoutRequest("https://attacker.example")
+    )
+
+    expect(response.status).toBe(403)
+    expect(dependencies.readRefreshToken).not.toHaveBeenCalled()
+    expect(dependencies.revoke).not.toHaveBeenCalled()
+    expect(dependencies.clearSession).not.toHaveBeenCalled()
+  })
+
   it("treats an invalid upstream session as already logged out", async () => {
     const dependencies = logoutDependencies({
       readRefreshToken: vi.fn().mockResolvedValue("invalid-token"),
@@ -88,6 +101,9 @@ function logoutDependencies(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function logoutRequest(): Request {
-  return new Request("http://localhost/api/auth/logout", { method: "POST" })
+function logoutRequest(origin = "http://localhost"): Request {
+  return new Request("http://localhost/api/auth/logout", {
+    method: "POST",
+    headers: { Origin: origin },
+  })
 }
