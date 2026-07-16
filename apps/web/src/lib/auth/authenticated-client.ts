@@ -6,20 +6,30 @@ import {
   readRefreshToken,
   writeAuthSession,
 } from "./session"
+import { createRefreshCoordinator } from "./refresh-coordinator"
 import type { AuthTokens, RefreshResponse } from "./types"
 
 interface AuthenticatedClientDependencies {
   request: (path: string, init?: RequestInit) => Promise<unknown>
   readAccessToken: () => Promise<string | undefined>
   readRefreshToken: () => Promise<string | undefined>
+  refreshSession: (refreshToken: string) => Promise<RefreshResponse>
   writeSession: (tokens: AuthTokens) => Promise<void>
   clearSession: () => Promise<void>
 }
+
+const refreshSession = createRefreshCoordinator((refreshToken) =>
+  requestAPI<RefreshResponse>("/auth/refresh", {
+    method: "POST",
+    body: JSON.stringify({ refreshToken }),
+  })
+)
 
 const defaultDependencies: AuthenticatedClientDependencies = {
   request: requestAPI,
   readAccessToken,
   readRefreshToken,
+  refreshSession,
   writeSession: writeAuthSession,
   clearSession: clearAuthSession,
 }
@@ -53,11 +63,7 @@ export async function requestAuthenticatedAPI<T>(
 
   let refreshed: RefreshResponse
   try {
-    refreshed = (await dependencies.request("/auth/refresh", {
-      method: "POST",
-      body: JSON.stringify({ refreshToken }),
-      signal: init.signal,
-    })) as RefreshResponse
+    refreshed = await dependencies.refreshSession(refreshToken)
   } catch (error) {
     if (isUnauthorized(error)) {
       await dependencies.clearSession()
