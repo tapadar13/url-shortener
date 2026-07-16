@@ -41,7 +41,8 @@ export function EditDestinationDialog({
 }: EditDestinationDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 p-6 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl sm:max-w-lg">
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brand" />
         {/* Content unmounts on close, so the form resets on every open. */}
         <EditDestinationForm link={link} onOpenChange={onOpenChange} />
       </DialogContent>
@@ -154,7 +155,8 @@ export function StatsDialog({ shortCode, onOpenChange }: StatsDialogProps) {
 
   return (
     <Dialog open={shortCode !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 p-6 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl sm:max-w-md">
+        <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brand" />
         <DialogHeader>
           <DialogTitle className="font-mono text-base">
             {siteConfig.shortHost}/{shortCode}
@@ -172,7 +174,7 @@ export function StatsDialog({ shortCode, onOpenChange }: StatsDialogProps) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl border bg-card/60 p-3.5">
+            <div className="rounded-xl border border-foreground/8 bg-card/70 p-3.5">
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <BarChart3 className="size-3" aria-hidden="true" />
                 Total visits
@@ -181,7 +183,7 @@ export function StatsDialog({ shortCode, onOpenChange }: StatsDialogProps) {
                 {formatCount(stats.data.accessCount)}
               </p>
             </div>
-            <div className="rounded-xl border bg-card/60 p-3.5">
+            <div className="rounded-xl border border-foreground/8 bg-card/70 p-3.5">
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Clock className="size-3" aria-hidden="true" />
                 Last visit
@@ -190,7 +192,7 @@ export function StatsDialog({ shortCode, onOpenChange }: StatsDialogProps) {
                 {timeAgo(stats.data.lastAccessedAt)}
               </p>
             </div>
-            <div className="col-span-2 space-y-2 rounded-xl border bg-card/60 p-3.5">
+            <div className="col-span-2 space-y-2 rounded-xl border border-foreground/8 bg-card/70 p-3.5">
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <Link2 className="size-3" aria-hidden="true" />
                 Destination

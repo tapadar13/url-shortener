@@ -93,12 +93,12 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
 
   return (
     <li
-      className="animate-fade-up group flex items-center gap-3 px-4 py-3.5 transition-colors [animation-duration:0.5s] hover:bg-foreground/4 sm:px-5"
+      className="animate-fade-up group flex items-center gap-3 px-4 py-3.5 transition-colors [animation-duration:0.5s] hover:bg-brand-muted/25 sm:px-5"
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
     >
       <span
         aria-hidden="true"
-        className="hidden size-8 shrink-0 items-center justify-center rounded-lg border bg-card/80 text-muted-foreground/70 sm:flex"
+        className="hidden size-8 shrink-0 items-center justify-center rounded-lg border border-foreground/8 bg-background text-muted-foreground/70 shadow-[0_8px_20px_-16px_rgb(20_24_16/0.5)] sm:flex"
       >
         <Link2 className="size-3.5" />
       </span>
@@ -108,7 +108,7 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
           <button
             type="button"
             onClick={() => setStatsOpen(true)}
-            className="truncate rounded-md font-mono text-[13px] font-medium outline-none hover:text-brand focus-visible:ring-3 focus-visible:ring-ring"
+            className="truncate rounded-md font-mono text-[13px] font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring"
           >
             {siteConfig.shortHost}/{link.shortCode}
           </button>
@@ -183,7 +183,7 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
         onOpenChange={setStatsOpen}
       />
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <AlertDialogContent>
+        <AlertDialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Delete {siteConfig.shortHost}/{link.shortCode}?
@@ -245,7 +245,7 @@ export function LinksList({
         </p>
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-2xl border bg-card/45">
+      <div className="mt-3 overflow-hidden rounded-[1.75rem] border border-foreground/9 bg-card/75 shadow-[0_20px_60px_-48px_rgb(20_24_16/0.48)] backdrop-blur-sm">
         {query.isPending ? (
           <ul aria-label="Loading links">
             {Array.from({ length: 6 }, (_, index) => (
@@ -270,7 +270,7 @@ export function LinksList({
           <div className="px-5 py-16 text-center">
             <span
               aria-hidden="true"
-              className="mx-auto flex size-11 items-center justify-center rounded-xl border bg-card"
+              className="mx-auto flex size-11 items-center justify-center rounded-xl border border-foreground/8 bg-background shadow-[0_10px_30px_-22px_rgb(20_24_16/0.5)]"
             >
               <Link2 className="size-5 text-muted-foreground/60" />
             </span>
@@ -280,7 +280,7 @@ export function LinksList({
             </p>
           </div>
         ) : (
-          <ul className="divide-y divide-border/70">
+          <ul className="divide-y divide-foreground/6">
             {links.map((link, index) => (
               <LinkRow key={link.id} link={link} index={index} />
             ))}
@@ -294,7 +294,7 @@ export function LinksList({
             variant="outline"
             onClick={() => query.fetchNextPage()}
             disabled={query.isFetchingNextPage}
-            className="gap-1.5 bg-card/45 text-xs"
+            className="gap-1.5 rounded-full border-foreground/10 bg-card/75 px-4 text-xs shadow-[0_10px_30px_-24px_rgb(20_24_16/0.5)] backdrop-blur-sm"
           >
             {query.isFetchingNextPage ? (
               <Loader2

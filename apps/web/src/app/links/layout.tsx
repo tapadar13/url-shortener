@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 
-import { WorkspaceTheme } from "@/components/links/workspace-theme"
 import { Toaster } from "@/components/ui/sonner"
 
 export const metadata: Metadata = {
@@ -15,9 +14,9 @@ export default function LinksLayout({
   children: React.ReactNode
 }>) {
   return (
-    <WorkspaceTheme>
+    <>
       {children}
       <Toaster position="bottom-right" />
-    </WorkspaceTheme>
+    </>
   )
 }
