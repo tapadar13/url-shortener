@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Menu } from "lucide-react"
 
 import { AnchorLink } from "@/components/anchor-link"
-import { AuthDialog } from "@/components/landing/auth-dialog"
 import { Brand } from "@/components/layout/brand"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,12 +73,12 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <AuthDialog intent="log-in">
-            <Button variant="ghost">Log in</Button>
-          </AuthDialog>
-          <AuthDialog intent="get-started">
-            <Button>Get started</Button>
-          </AuthDialog>
+          <Button variant="ghost" asChild>
+            <Link href="/login">Log in</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/register">Get started</Link>
+          </Button>
         </div>
 
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -118,14 +117,16 @@ export function SiteHeader() {
               ))}
             </nav>
             <div className="mt-auto flex flex-col gap-2 p-4">
-              <AuthDialog intent="log-in">
-                <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" asChild>
+                <Link href="/login" onClick={() => setMenuOpen(false)}>
                   Log in
-                </Button>
-              </AuthDialog>
-              <AuthDialog intent="get-started">
-                <Button className="w-full">Get started</Button>
-              </AuthDialog>
+                </Link>
+              </Button>
+              <Button className="w-full" asChild>
+                <Link href="/register" onClick={() => setMenuOpen(false)}>
+                  Get started
+                </Link>
+              </Button>
             </div>
           </SheetContent>
         </Sheet>
