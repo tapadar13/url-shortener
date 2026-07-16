@@ -3,6 +3,7 @@ import {
   apiErrorResponse,
   apiRouteErrorResponse,
 } from "@/lib/api/route-response"
+import { isSameOriginRequest } from "@/lib/security/request-origin"
 
 import { writeAuthSession } from "./session"
 import type { AuthCredentials, AuthResponse, AuthTokens } from "./types"
@@ -34,6 +35,14 @@ export function createAuthRoute(
   dependencies: AuthRouteDependencies = defaultDependencies
 ): (request: Request) => Promise<Response> {
   return async (request) => {
+    if (!isSameOriginRequest(request)) {
+      return apiErrorResponse(
+        403,
+        "origin_not_allowed",
+        "request origin is not allowed"
+      )
+    }
+
     let body: unknown
     try {
       body = await request.json()
