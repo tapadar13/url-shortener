@@ -50,12 +50,36 @@ describe("createAuthRoute", () => {
     const response = await handler(
       new Request("http://localhost/api/auth/login", {
         method: "POST",
+        headers: { Origin: "http://localhost" },
         body: "{",
       })
     )
 
     expect(response.status).toBe(400)
     expect(authenticate).not.toHaveBeenCalled()
+  })
+
+  it("rejects a cross-origin request before handling credentials", async () => {
+    const authenticate = vi.fn()
+    const writeSession = vi.fn()
+    const handler = createAuthRoute("/auth/login", 200, {
+      authenticate,
+      writeSession,
+    })
+
+    const response = await handler(
+      authRequest(undefined, "https://attacker.example")
+    )
+
+    expect(response.status).toBe(403)
+    await expect(response.json()).resolves.toEqual({
+      error: {
+        code: "origin_not_allowed",
+        message: "request origin is not allowed",
+      },
+    })
+    expect(authenticate).not.toHaveBeenCalled()
+    expect(writeSession).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -123,13 +147,16 @@ describe("createAuthRoute", () => {
   })
 })
 
-function authRequest(body: unknown = {
-  email: "user@example.com",
-  password: "correct horse battery staple",
-}): Request {
+function authRequest(
+  body: unknown = {
+    email: "user@example.com",
+    password: "correct horse battery staple",
+  },
+  origin = "http://localhost"
+): Request {
   return new Request("http://localhost/api/auth/login", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", Origin: origin },
     body: JSON.stringify(body),
   })
 }
