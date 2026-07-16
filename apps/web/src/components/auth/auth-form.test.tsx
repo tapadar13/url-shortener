@@ -2,30 +2,30 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
+import { authSessionQueryKey } from "@/hooks/use-auth"
+
 import { AuthForm } from "./auth-form"
-
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }))
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => navigation,
-}))
 
 afterEach(() => {
   cleanup()
-  navigation.replace.mockReset()
   vi.unstubAllGlobals()
 })
 
 describe("AuthForm", () => {
-  it("logs in and enters the dashboard", async () => {
+  it("logs in and updates the authenticated session", async () => {
     const fetchMock = successfulAuthFetch(200)
     vi.stubGlobal("fetch", fetchMock)
-    renderAuthForm("login")
+    const { queryClient } = renderAuthForm("login")
 
     fillCredentials()
     fireEvent.submit(screen.getByRole("form", { name: "Log in" }))
 
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/dashboard"))
+    await waitFor(() =>
+      expect(queryClient.getQueryData(authSessionQueryKey)).toEqual({
+        id: "user-1",
+        email: "user@example.com",
+      })
+    )
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/auth/login",
       expect.objectContaining({
@@ -35,18 +35,6 @@ describe("AuthForm", () => {
           password: "correct horse battery staple",
         }),
       })
-    )
-  })
-
-  it("returns to a protected destination after login", async () => {
-    vi.stubGlobal("fetch", successfulAuthFetch(200))
-    renderAuthForm("login", "/links?page=2")
-
-    fillCredentials()
-    fireEvent.submit(screen.getByRole("form", { name: "Log in" }))
-
-    await waitFor(() =>
-      expect(navigation.replace).toHaveBeenCalledWith("/links?page=2")
     )
   })
 
@@ -81,7 +69,6 @@ describe("AuthForm", () => {
     expect((await screen.findByRole("alert")).textContent).toContain(
       "email or password is invalid"
     )
-    expect(navigation.replace).not.toHaveBeenCalled()
   })
 
   it("rejects mismatched registration passwords locally", async () => {
@@ -120,11 +107,13 @@ function renderAuthForm(mode: "login" | "register", returnTo?: string) {
     },
   })
 
-  return render(
+  const view = render(
     <QueryClientProvider client={queryClient}>
       <AuthForm mode={mode} returnTo={returnTo} />
     </QueryClientProvider>
   )
+
+  return { ...view, queryClient }
 }
 
 function fillCredentials() {
