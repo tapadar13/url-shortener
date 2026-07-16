@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -134,6 +135,102 @@ func TestRepositoryCreateRejectsUnexpectedInsertedID(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "expected ObjectID") {
 		t.Fatalf("expected ObjectID error, got %q", err.Error())
+	}
+}
+
+func TestRepositoryListPageByOwnerUsesStableSeekPagination(t *testing.T) {
+	t.Parallel()
+
+	cursorID := bson.NewObjectID()
+	cursorCreatedAt := time.Date(2026, 7, 15, 12, 30, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	firstID := bson.NewObjectID()
+	secondID := bson.NewObjectID()
+	createdAt := cursorCreatedAt.Add(-time.Hour).UTC()
+	cursor, err := mongo.NewCursorFromDocuments([]any{
+		urlDocument{
+			ID:        firstID,
+			OwnerID:   "owner-1",
+			LongURL:   "https://example.com/first",
+			ShortCode: "First1",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+		urlDocument{
+			ID:        secondID,
+			OwnerID:   "owner-1",
+			LongURL:   "https://example.com/second",
+			ShortCode: "Second",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create test cursor: %v", err)
+	}
+
+	collection := &fakeInsertOneCollection{listCursor: cursor}
+	repository := newRepository(collection)
+	listed, err := repository.ListPageByOwner(context.Background(), urlmodel.ListQuery{
+		OwnerID: "owner-1",
+		Limit:   26,
+		After: &urlmodel.ListCursor{
+			CreatedAt: cursorCreatedAt,
+			ID:        cursorID.Hex(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected URL page to be listed: %v", err)
+	}
+
+	if !collection.listCalled {
+		t.Fatal("expected collection to be queried")
+	}
+	expectedFilter := bson.D{
+		{Key: "owner_id", Value: "owner-1"},
+		{Key: "$or", Value: bson.A{
+			bson.D{{Key: "created_at", Value: bson.D{{Key: "$lt", Value: cursorCreatedAt.UTC()}}}},
+			bson.D{
+				{Key: "created_at", Value: cursorCreatedAt.UTC()},
+				{Key: "_id", Value: bson.D{{Key: "$lt", Value: cursorID}}},
+			},
+		}},
+	}
+	if !reflect.DeepEqual(collection.listFilter, expectedFilter) {
+		t.Fatalf("expected seek filter %#v, got %#v", expectedFilter, collection.listFilter)
+	}
+
+	findOptions := listFindOptions(t, collection.listOptions)
+	expectedSort := bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}
+	if !reflect.DeepEqual(findOptions.Sort, expectedSort) {
+		t.Fatalf("expected stable sort %#v, got %#v", expectedSort, findOptions.Sort)
+	}
+	if findOptions.Limit == nil || *findOptions.Limit != 26 {
+		t.Fatalf("expected query limit 26, got %#v", findOptions.Limit)
+	}
+
+	if len(listed) != 2 || listed[0].ID != firstID.Hex() || listed[1].ID != secondID.Hex() {
+		t.Fatalf("expected listed URL documents to be mapped in order, got %#v", listed)
+	}
+}
+
+func TestRepositoryListPageByOwnerRejectsMalformedCursorIDBeforeQuerying(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+	_, err := repository.ListPageByOwner(context.Background(), urlmodel.ListQuery{
+		OwnerID: "owner-1",
+		Limit:   26,
+		After: &urlmodel.ListCursor{
+			CreatedAt: time.Now(),
+			ID:        "not-an-object-id",
+		},
+	})
+	if !errors.Is(err, urlmodel.ErrCursorInvalid) {
+		t.Fatalf("expected invalid cursor error, got %v", err)
+	}
+	if collection.listCalled {
+		t.Fatal("expected collection not to be queried")
 	}
 }
 
@@ -599,6 +696,21 @@ func findOneAndUpdateOptions(t *testing.T, values []options.Lister[options.FindO
 	return result
 }
 
+func listFindOptions(t *testing.T, values []options.Lister[options.FindOptions]) options.FindOptions {
+	t.Helper()
+
+	var result options.FindOptions
+	for _, value := range values {
+		for _, apply := range value.List() {
+			if err := apply(&result); err != nil {
+				t.Fatalf("expected valid find option: %v", err)
+			}
+		}
+	}
+
+	return result
+}
+
 func newValidURLRecord(t *testing.T) urlmodel.URL {
 	t.Helper()
 
@@ -631,6 +743,11 @@ type fakeInsertOneCollection struct {
 	deleteResult  *mongo.DeleteResult
 	deleteErr     error
 	deleteCount   int
+	listCalled    bool
+	listFilter    any
+	listOptions   []options.Lister[options.FindOptions]
+	listCursor    *mongo.Cursor
+	listErr       error
 }
 
 func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error) {
@@ -661,4 +778,12 @@ func (c *fakeInsertOneCollection) DeleteOne(_ context.Context, filter any, _ ...
 	c.deleteFilter = filter
 
 	return c.deleteResult, c.deleteErr
+}
+
+func (c *fakeInsertOneCollection) Find(_ context.Context, filter any, options ...options.Lister[options.FindOptions]) (*mongo.Cursor, error) {
+	c.listCalled = true
+	c.listFilter = filter
+	c.listOptions = options
+
+	return c.listCursor, c.listErr
 }
