@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -216,6 +217,84 @@ func TestURLRepositoryListsOnlyOwnerURLsNewestFirst(t *testing.T) {
 	}
 	if len(urls) != 2 || urls[0].LongURL != "https://example.com/new" || urls[1].LongURL != "https://example.com/old" {
 		t.Fatalf("expected owner-scoped newest-first results, got %+v", urls)
+	}
+}
+
+func TestURLRepositoryPaginatesStableOwnerResults(t *testing.T) {
+	repository, _ := newIntegrationURLRepository(t)
+	ctx, cancel := context.WithTimeout(context.Background(), integrationTimeout)
+	defer cancel()
+
+	const ownerID = "pagination-owner"
+	createdAt := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
+	created := make([]urlmodel.URL, 0, 5)
+	for index := range 5 {
+		record, err := urlmodel.New(urlmodel.NewParams{
+			OwnerID:   ownerID,
+			LongURL:   fmt.Sprintf("https://example.com/page/%d", index),
+			ShortCode: fmt.Sprintf("Page%02d", index),
+			Now:       createdAt,
+		})
+		if err != nil {
+			t.Fatalf("create domain URL %d: %v", index, err)
+		}
+		if index == 4 {
+			record.CreatedAt = createdAt.Add(-time.Hour)
+			record.UpdatedAt = record.CreatedAt
+		}
+		stored, err := repository.Create(ctx, record)
+		if err != nil {
+			t.Fatalf("create URL %d: %v", index, err)
+		}
+		created = append(created, stored)
+	}
+
+	otherOwner, err := urlmodel.New(urlmodel.NewParams{
+		OwnerID:   "other-owner",
+		LongURL:   "https://example.com/other",
+		ShortCode: "Other1",
+		Now:       createdAt.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("create other owner domain URL: %v", err)
+	}
+	if _, err := repository.Create(ctx, otherOwner); err != nil {
+		t.Fatalf("create other owner URL: %v", err)
+	}
+
+	sort.Slice(created, func(left, right int) bool {
+		if created[left].CreatedAt.Equal(created[right].CreatedAt) {
+			return created[left].ID > created[right].ID
+		}
+		return created[left].CreatedAt.After(created[right].CreatedAt)
+	})
+
+	var listed []urlmodel.URL
+	var after *urlmodel.ListCursor
+	for pageNumber := 1; pageNumber <= 3; pageNumber++ {
+		page, err := repository.ListPageByOwner(ctx, urlmodel.ListQuery{
+			OwnerID: ownerID,
+			Limit:   2,
+			After:   after,
+		})
+		if err != nil {
+			t.Fatalf("list page %d: %v", pageNumber, err)
+		}
+		listed = append(listed, page...)
+		if len(page) == 0 {
+			break
+		}
+		last := page[len(page)-1]
+		after = &urlmodel.ListCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+	}
+
+	if len(listed) != len(created) {
+		t.Fatalf("expected %d paginated URLs, got %d", len(created), len(listed))
+	}
+	for index := range created {
+		if listed[index].ID != created[index].ID {
+			t.Fatalf("expected URL %q at position %d, got %q", created[index].ID, index, listed[index].ID)
+		}
 	}
 }
 
