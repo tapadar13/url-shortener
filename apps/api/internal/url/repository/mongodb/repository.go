@@ -41,20 +41,38 @@ type collection interface {
 }
 
 func (r *Repository) ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error) {
+	return r.ListPageByOwner(ctx, urlmodel.ListQuery{OwnerID: ownerID, Limit: limit})
+}
+
+func (r *Repository) ListPageByOwner(ctx context.Context, query urlmodel.ListQuery) ([]urlmodel.URL, error) {
 	if r == nil || r.collection == nil {
 		return nil, errors.New("MongoDB URL collection is required")
 	}
-	if ownerID == "" {
+	if query.OwnerID == "" {
 		return nil, errors.New("URL owner is required")
 	}
-	if limit <= 0 || limit > 100 {
-		return nil, errors.New("URL list limit must be between 1 and 100")
+	if query.Limit <= 0 || query.Limit > 101 {
+		return nil, errors.New("URL list query limit must be between 1 and 101")
 	}
 	findCollection, ok := r.collection.(findCollection)
 	if !ok {
 		return nil, errors.New("MongoDB URL collection does not support listing")
 	}
-	cursor, err := findCollection.Find(ctx, bson.M{"owner_id": ownerID}, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}).SetLimit(limit))
+	filter := bson.D{{Key: "owner_id", Value: query.OwnerID}}
+	if query.After != nil {
+		if err := query.After.Validate(); err != nil {
+			return nil, err
+		}
+		cursorID, err := bson.ObjectIDFromHex(query.After.ID)
+		if err != nil {
+			return nil, urlmodel.ErrCursorInvalid
+		}
+		filter = append(filter, bson.E{Key: "$or", Value: bson.A{
+			bson.D{{Key: "created_at", Value: bson.D{{Key: "$lt", Value: query.After.CreatedAt.UTC()}}}},
+			bson.D{{Key: "created_at", Value: query.After.CreatedAt.UTC()}, {Key: "_id", Value: bson.D{{Key: "$lt", Value: cursorID}}}},
+		}})
+	}
+	cursor, err := findCollection.Find(ctx, filter, options.Find().SetSort(bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}).SetLimit(query.Limit))
 	if err != nil {
 		return nil, fmt.Errorf("find URLs by owner: %w", err)
 	}
