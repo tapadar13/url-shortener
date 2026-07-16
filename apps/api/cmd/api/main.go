@@ -270,6 +270,7 @@ func run(ctx context.Context) error {
 		AccessTokenIssuer:   tokenService,
 		AccessTokenVerifier: tokenService,
 		RefreshSessions:     sessionService,
+		BaseURL:             cfg.HTTP.BaseURL,
 	})
 	handler = httpapi.RateLimit(requestLimiter, cfg.HTTP.TrustedProxyCIDRs...)(handler)
 	handler = httpserver.CORS(cfg.HTTP.AllowedOrigins)(handler)

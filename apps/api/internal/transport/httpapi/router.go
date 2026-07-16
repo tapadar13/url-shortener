@@ -68,6 +68,7 @@ type Dependencies struct {
 	AccessTokenVerifier AccessTokenVerifier
 	RefreshSessions     RefreshSessionManager
 	RedirectStatusCode  int
+	BaseURL             string
 }
 
 func NewRouter(dependencies Dependencies) http.Handler {
@@ -96,7 +97,7 @@ func NewRouter(dependencies Dependencies) http.Handler {
 	}
 
 	if dependencies.URLCreator != nil {
-		createHandler := newCreateURLHandler(dependencies.URLCreator)
+		createHandler := newCreateURLHandler(dependencies.URLCreator, dependencies.BaseURL)
 		if dependencies.AccessTokenVerifier != nil {
 			router.With(RequireAuth(dependencies.AccessTokenVerifier)).Post("/shorten", createHandler)
 		} else {
@@ -104,7 +105,7 @@ func NewRouter(dependencies Dependencies) http.Handler {
 		}
 	}
 	if dependencies.URLLister != nil {
-		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten", newListURLHandler(dependencies.URLLister))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten", newListURLHandler(dependencies.URLLister, dependencies.BaseURL))
 	}
 
 	if dependencies.URLFinder != nil {
@@ -116,12 +117,12 @@ func NewRouter(dependencies Dependencies) http.Handler {
 			)
 			registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/analytics", analyticsHandler)
 		}
-		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder))
-		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}/stats", newGetURLStatsHandler(dependencies.URLFinder, dependencies.BaseURL))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodGet, "/shorten/{shortCode}", newGetURLHandler(dependencies.URLFinder, dependencies.BaseURL))
 	}
 
 	if dependencies.URLUpdater != nil {
-		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodPut, "/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater))
+		registerManagementRoute(router, dependencies.AccessTokenVerifier, http.MethodPut, "/shorten/{shortCode}", newUpdateURLHandler(dependencies.URLUpdater, dependencies.BaseURL))
 	}
 
 	if dependencies.URLDeleter != nil {

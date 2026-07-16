@@ -208,7 +208,7 @@ func TestRouterCreatesShortURL(t *testing.T) {
 		},
 	}
 
-	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator}), http.MethodPost, "/shorten", `{"url":"https://example.com/articles/123"}`)
+	response := executeRequestWithBody(t, NewRouter(Dependencies{URLCreator: creator, BaseURL: "https://sho.rt"}), http.MethodPost, "/shorten", `{"url":"https://example.com/articles/123"}`)
 
 	assertStatus(t, response, http.StatusCreated)
 	assertJSONContentType(t, response)
@@ -220,6 +220,9 @@ func TestRouterCreatesShortURL(t *testing.T) {
 
 	if body.ID != creator.created.ID || body.URL != creator.created.LongURL || body.ShortCode != creator.created.ShortCode {
 		t.Fatalf("expected created URL response, got %#v", body)
+	}
+	if body.ShortURL != "https://sho.rt/AbC1234" {
+		t.Fatalf("expected canonical short URL, got %q", body.ShortURL)
 	}
 
 	if !body.CreatedAt.Equal(createdAt) || !body.UpdatedAt.Equal(createdAt) {

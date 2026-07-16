@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: URL Shortener API
-  version: 0.4.0
+  version: 0.5.0
   description: |
     Create and manage short URLs, retrieve link statistics, and redirect visitors
     while atomically recording accesses.
@@ -691,6 +691,7 @@ components:
         - id
         - url
         - shortCode
+        - shortUrl
         - createdAt
         - updatedAt
       properties:
@@ -702,6 +703,10 @@ components:
           format: uri
         shortCode:
           type: string
+        shortUrl:
+          type: string
+          format: uri
+          description: Canonical public redirect URL constructed from the configured base URL.
         createdAt:
           type: string
           format: date-time
