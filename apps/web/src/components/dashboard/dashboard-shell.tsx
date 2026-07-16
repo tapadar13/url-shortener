@@ -8,6 +8,7 @@ import { CheckCircle2, LoaderCircle, LogOut } from "lucide-react"
 import { Brand } from "@/components/layout/brand"
 import { Button } from "@/components/ui/button"
 import { useAuthSession, useLogout } from "@/hooks/use-auth"
+import { authPath } from "@/lib/navigation/return-path"
 
 export function DashboardShell() {
   const router = useRouter()
@@ -16,7 +17,7 @@ export function DashboardShell() {
 
   useEffect(() => {
     if (session.data === null) {
-      router.replace("/login")
+      router.replace(authPath("/login", "/dashboard"))
     }
   }, [router, session.data])
 
