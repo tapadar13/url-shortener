@@ -5,7 +5,6 @@ import Link from "next/link"
 import { Menu } from "lucide-react"
 
 import { AnchorLink } from "@/components/anchor-link"
-import { AuthDialog } from "@/components/landing/auth-dialog"
 import { Brand } from "@/components/layout/brand"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,11 +16,13 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet"
 import { siteConfig } from "@/config/site"
+import { useAuthSession } from "@/hooks/use-auth"
 import { cn } from "@/lib/utils"
 
 export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const session = useAuthSession()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
@@ -73,14 +74,11 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <AuthDialog intent="log-in">
-            <Button variant="ghost">Log in</Button>
-          </AuthDialog>
-          <AuthDialog intent="get-started">
-            <Button>Get started</Button>
-          </AuthDialog>
-        </div>
+        <AccountActions
+          authenticated={Boolean(session.data)}
+          pending={session.isPending}
+          className="hidden md:flex"
+        />
 
         <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
           <SheetTrigger asChild>
@@ -117,19 +115,91 @@ export function SiteHeader() {
                 </a>
               ))}
             </nav>
-            <div className="mt-auto flex flex-col gap-2 p-4">
-              <AuthDialog intent="log-in">
-                <Button variant="outline" className="w-full">
-                  Log in
-                </Button>
-              </AuthDialog>
-              <AuthDialog intent="get-started">
-                <Button className="w-full">Get started</Button>
-              </AuthDialog>
-            </div>
+            <AccountActions
+              authenticated={Boolean(session.data)}
+              pending={session.isPending}
+              mobile
+              onNavigate={() => setMenuOpen(false)}
+            />
           </SheetContent>
         </Sheet>
       </div>
     </header>
+  )
+}
+
+interface AccountActionsProps {
+  authenticated: boolean
+  pending: boolean
+  mobile?: boolean
+  className?: string
+  onNavigate?: () => void
+}
+
+function AccountActions({
+  authenticated,
+  pending,
+  mobile = false,
+  className,
+  onNavigate,
+}: AccountActionsProps) {
+  if (pending) {
+    return (
+      <div
+        role="status"
+        aria-label="Checking session"
+        className={cn(
+          "min-h-8 min-w-40 items-center justify-end gap-2",
+          mobile ? "mt-auto flex p-4" : "items-center",
+          className
+        )}
+      >
+        <span className="h-8 w-16 animate-pulse rounded-lg bg-muted" />
+        <span className="h-8 w-24 animate-pulse rounded-lg bg-muted" />
+      </div>
+    )
+  }
+
+  if (authenticated) {
+    return (
+      <div
+        className={cn(
+          "min-w-40 items-center justify-end",
+          mobile ? "mt-auto flex p-4" : "items-center",
+          className
+        )}
+      >
+        <Button className={cn(mobile && "w-full")} asChild>
+          <Link href="/dashboard" onClick={onNavigate}>
+            Dashboard
+          </Link>
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "min-w-40 items-center justify-end gap-2",
+        mobile ? "mt-auto flex flex-col p-4" : "items-center",
+        className
+      )}
+    >
+      <Button
+        variant={mobile ? "outline" : "ghost"}
+        className={cn(mobile && "w-full")}
+        asChild
+      >
+        <Link href="/login" onClick={onNavigate}>
+          Log in
+        </Link>
+      </Button>
+      <Button className={cn(mobile && "w-full")} asChild>
+        <Link href="/register" onClick={onNavigate}>
+          Get started
+        </Link>
+      </Button>
+    </div>
   )
 }

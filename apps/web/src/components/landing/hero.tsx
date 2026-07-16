@@ -1,8 +1,8 @@
 import { ArrowUpRight } from "lucide-react"
+import Link from "next/link"
 
 import { AnchorLink } from "@/components/anchor-link"
 import { GithubMark } from "@/components/icons"
-import { AuthDialog } from "@/components/landing/auth-dialog"
 import { ProductPreview } from "@/components/landing/product-preview"
 import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
@@ -51,9 +51,9 @@ export function Hero() {
           </p>
 
           <div className="animate-fade-up mt-8 flex flex-wrap items-center justify-center gap-3 [animation-delay:240ms]">
-            <AuthDialog intent="get-started">
-              <Button className="h-10 px-5">Get started</Button>
-            </AuthDialog>
+            <Button className="h-10 px-5" asChild>
+              <Link href="/register">Get started</Link>
+            </Button>
             <Button variant="outline" className="h-10 px-5" asChild>
               <AnchorLink href="#product">Explore the platform</AnchorLink>
             </Button>
