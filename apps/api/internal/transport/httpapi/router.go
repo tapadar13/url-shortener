@@ -17,7 +17,7 @@ type URLCreator interface {
 }
 
 type URLLister interface {
-	ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error)
+	ListPageByOwner(ctx context.Context, params service.ListParams) (service.ListPage, error)
 }
 
 type URLFinder interface {

@@ -13,6 +13,8 @@ const (
 	MaxURLListLimit     int64 = 100
 )
 
+var ErrURLListLimitInvalid = errors.New("URL list limit must be between 1 and 100")
+
 type ListRepository interface {
 	ListByOwner(ctx context.Context, ownerID string, limit int64) ([]urlmodel.URL, error)
 	ListPageByOwner(ctx context.Context, query urlmodel.ListQuery) ([]urlmodel.URL, error)
@@ -57,7 +59,7 @@ func (s *ListService) ListPageByOwner(ctx context.Context, params ListParams) (L
 		params.Limit = DefaultURLListLimit
 	}
 	if params.Limit < 1 || params.Limit > MaxURLListLimit {
-		return ListPage{}, errors.New("URL list limit must be between 1 and 100")
+		return ListPage{}, ErrURLListLimitInvalid
 	}
 	var after *urlmodel.ListCursor
 	if params.Cursor != "" {
