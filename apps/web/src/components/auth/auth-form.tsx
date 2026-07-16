@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Eye, EyeOff, LoaderCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +41,6 @@ export function AuthForm({
   mode: AuthMode
   returnTo?: string
 }) {
-  const router = useRouter()
   const loginMutation = useLogin()
   const registerMutation = useRegister()
   const mutation = mode === "login" ? loginMutation : registerMutation
@@ -62,12 +60,7 @@ export function AuthForm({
       return
     }
 
-    mutation.mutate(
-      { email, password },
-      {
-        onSuccess: () => router.replace(returnTo),
-      }
-    )
+    mutation.mutate({ email, password })
   }
 
   const error = formError ?? authErrorMessage(mutation.error)
