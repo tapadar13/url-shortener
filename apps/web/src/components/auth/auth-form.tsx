@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useLogin, useRegister } from "@/hooks/use-auth"
 import { APIConnectionError, APIRequestError } from "@/lib/api/errors"
+import { authPath } from "@/lib/navigation/return-path"
 
 type AuthMode = "login" | "register"
 
@@ -34,7 +35,13 @@ const copy = {
   },
 } as const
 
-export function AuthForm({ mode }: { mode: AuthMode }) {
+export function AuthForm({
+  mode,
+  returnTo = "/dashboard",
+}: {
+  mode: AuthMode
+  returnTo?: string
+}) {
   const router = useRouter()
   const loginMutation = useLogin()
   const registerMutation = useRegister()
@@ -58,7 +65,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
     mutation.mutate(
       { email, password },
       {
-        onSuccess: () => router.replace("/dashboard"),
+        onSuccess: () => router.replace(returnTo),
       }
     )
   }
@@ -171,7 +178,7 @@ export function AuthForm({ mode }: { mode: AuthMode }) {
       <p className="mt-6 text-center text-sm text-muted-foreground">
         {content.alternate}{" "}
         <Link
-          href={content.alternateHref}
+          href={authPath(content.alternateHref, returnTo)}
           className="font-medium text-foreground underline-offset-4 hover:underline"
         >
           {content.alternateAction}
