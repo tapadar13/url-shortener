@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 
-import { AuthForm } from "@/components/auth/auth-form"
+import { AuthPage } from "@/components/auth/auth-page"
 import { safeReturnPath } from "@/lib/navigation/return-path"
 
 export const metadata: Metadata = {
@@ -15,5 +15,5 @@ interface RegisterPageProps {
 export default async function RegisterPage({ searchParams }: RegisterPageProps) {
   const { returnTo } = await searchParams
 
-  return <AuthForm mode="register" returnTo={safeReturnPath(returnTo)} />
+  return <AuthPage mode="register" returnTo={safeReturnPath(returnTo)} />
 }
