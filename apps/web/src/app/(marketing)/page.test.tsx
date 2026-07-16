@@ -17,7 +17,7 @@ describe("landing page", () => {
       screen.getByRole("heading", { level: 1, name: siteConfig.tagline })
     ).toBeDefined()
     expect(
-      screen.getAllByRole("button", { name: "Get started" }).length
+      screen.getAllByRole("link", { name: "Get started" }).length
     ).toBeGreaterThan(0)
     expect(
       screen.getByRole("link", { name: "Explore the platform" })
@@ -52,10 +52,10 @@ describe("site header", () => {
       ).toBeGreaterThan(0)
     }
     expect(
-      screen.getAllByRole("button", { name: "Log in" }).length
+      screen.getAllByRole("link", { name: "Log in" }).length
     ).toBeGreaterThan(0)
     expect(
-      screen.getAllByRole("button", { name: "Get started" }).length
+      screen.getAllByRole("link", { name: "Get started" }).length
     ).toBeGreaterThan(0)
   })
 })
