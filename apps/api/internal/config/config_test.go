@@ -216,6 +216,30 @@ func TestLoadFromMapRejectsInvalidRequestBodyLimit(t *testing.T) {
 	}
 }
 
+func TestLoadFromMapRejectsUnsafeBaseURLComponents(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+	}{
+		{name: "credentials", value: "https://user:password@sho.rt"},
+		{name: "query", value: "https://sho.rt?source=api"},
+		{name: "fragment", value: "https://sho.rt#links"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := LoadFromMap(map[string]string{"BASE_URL": tt.value})
+			if err == nil || !strings.Contains(err.Error(), "BASE_URL") {
+				t.Fatalf("expected BASE_URL validation error, got %v", err)
+			}
+		})
+	}
+}
+
 func TestLoadFromMapRejectsInvalidValues(t *testing.T) {
 	t.Parallel()
 
