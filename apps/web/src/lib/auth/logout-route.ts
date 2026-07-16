@@ -1,5 +1,9 @@
 import { APIRequestError, requestAPI } from "@/lib/api/client"
-import { apiRouteErrorResponse } from "@/lib/api/route-response"
+import {
+  apiErrorResponse,
+  apiRouteErrorResponse,
+} from "@/lib/api/route-response"
+import { isSameOriginRequest } from "@/lib/security/request-origin"
 
 import { clearAuthSession, readRefreshToken } from "./session"
 
@@ -24,6 +28,14 @@ export function createLogoutRoute(
   dependencies: LogoutRouteDependencies = defaultDependencies
 ): (request: Request) => Promise<Response> {
   return async (request) => {
+    if (!isSameOriginRequest(request)) {
+      return apiErrorResponse(
+        403,
+        "origin_not_allowed",
+        "request origin is not allowed"
+      )
+    }
+
     let failure: unknown
 
     try {
