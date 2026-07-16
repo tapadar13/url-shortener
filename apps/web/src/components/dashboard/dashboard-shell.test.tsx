@@ -1,0 +1,98 @@
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+import { DashboardShell } from "./dashboard-shell"
+
+const navigation = vi.hoisted(() => ({ replace: vi.fn() }))
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigation,
+}))
+
+afterEach(() => {
+  cleanup()
+  navigation.replace.mockReset()
+  vi.unstubAllGlobals()
+})
+
+describe("DashboardShell", () => {
+  it("renders the authenticated account state", async () => {
+    vi.stubGlobal("fetch", sessionFetch(200))
+    renderDashboard()
+
+    expect(await screen.findByText("user@example.com")).toBeDefined()
+    expect(screen.getByText("Active")).toBeDefined()
+    expect(navigation.replace).not.toHaveBeenCalled()
+  })
+
+  it("redirects anonymous visitors to login", async () => {
+    vi.stubGlobal("fetch", sessionFetch(401))
+    renderDashboard()
+
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/login"))
+  })
+
+  it("shows a recoverable API outage state", async () => {
+    vi.stubGlobal("fetch", sessionFetch(502))
+    renderDashboard()
+
+    expect(
+      await screen.findByRole("heading", { name: "Couldn't load your workspace" })
+    ).toBeDefined()
+    expect(screen.getByRole("button", { name: "Try again" })).toBeDefined()
+  })
+
+  it("logs out and returns to the landing page", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(authResponse(200))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    vi.stubGlobal("fetch", fetchMock)
+    renderDashboard()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Sign out" }))
+
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"))
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/auth/logout",
+      expect.objectContaining({ method: "POST" })
+    )
+  })
+})
+
+function renderDashboard() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <DashboardShell />
+    </QueryClientProvider>
+  )
+}
+
+function sessionFetch(status: number) {
+  return vi.fn().mockResolvedValue(authResponse(status))
+}
+
+function authResponse(status: number) {
+  const body =
+    status === 200
+      ? { user: { id: "user-1", email: "user@example.com" } }
+      : {
+          error: {
+            code: status === 401 ? "unauthorized" : "api_unavailable",
+            message: status === 401 ? "authentication is required" : "offline",
+          },
+        }
+
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  })
+}
