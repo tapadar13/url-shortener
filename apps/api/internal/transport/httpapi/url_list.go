@@ -14,7 +14,7 @@ type urlListResponse struct {
 	NextCursor string        `json:"nextCursor,omitempty"`
 }
 
-func newListURLHandler(lister URLLister) http.HandlerFunc {
+func newListURLHandler(lister URLLister, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ownerID, ok := CurrentUserID(r.Context())
 		if !ok {
@@ -48,7 +48,7 @@ func newListURLHandler(lister URLLister) http.HandlerFunc {
 		}
 		responses := make([]urlResponse, 0, len(page.Items))
 		for _, record := range page.Items {
-			responses = append(responses, newURLResponse(record))
+			responses = append(responses, newURLResponse(record, baseURL))
 		}
 		writeJSON(w, http.StatusOK, urlListResponse{Items: responses, NextCursor: page.NextCursor})
 	}

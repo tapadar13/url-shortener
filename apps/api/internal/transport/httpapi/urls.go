@@ -30,6 +30,7 @@ type urlResponse struct {
 	ID        string     `json:"id"`
 	URL       string     `json:"url"`
 	ShortCode string     `json:"shortCode"`
+	ShortURL  string     `json:"shortUrl,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
@@ -39,6 +40,7 @@ type urlStatsResponse struct {
 	ID             string     `json:"id"`
 	URL            string     `json:"url"`
 	ShortCode      string     `json:"shortCode"`
+	ShortURL       string     `json:"shortUrl,omitempty"`
 	AccessCount    int64      `json:"accessCount"`
 	CreatedAt      time.Time  `json:"createdAt"`
 	UpdatedAt      time.Time  `json:"updatedAt"`
@@ -46,7 +48,7 @@ type urlStatsResponse struct {
 	ExpiresAt      *time.Time `json:"expiresAt,omitempty"`
 }
 
-func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
+func newCreateURLHandler(creator URLCreator, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request createURLRequest
 		if err := decodeJSONRequest(r, &request); err != nil {
@@ -69,7 +71,7 @@ func newCreateURLHandler(creator URLCreator) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, newURLResponse(created))
+		writeJSON(w, http.StatusCreated, newURLResponse(created, baseURL))
 	}
 }
 
@@ -78,7 +80,7 @@ func currentOwnerID(ctx context.Context) string {
 	return ownerID
 }
 
-func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
+func newUpdateURLHandler(updater URLUpdater, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request updateURLRequest
 		if err := decodeJSONRequest(r, &request); err != nil {
@@ -110,11 +112,11 @@ func newUpdateURLHandler(updater URLUpdater) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, newURLResponse(updated))
+		writeJSON(w, http.StatusOK, newURLResponse(updated, baseURL))
 	}
 }
 
-func newGetURLHandler(finder URLFinder) http.HandlerFunc {
+func newGetURLHandler(finder URLFinder, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		found, err := findURLForRequest(r, finder)
 		if err != nil {
@@ -122,11 +124,11 @@ func newGetURLHandler(finder URLFinder) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, newURLResponse(found))
+		writeJSON(w, http.StatusOK, newURLResponse(found, baseURL))
 	}
 }
 
-func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
+func newGetURLStatsHandler(finder URLFinder, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		found, err := findURLForRequest(r, finder)
 		if err != nil {
@@ -134,7 +136,7 @@ func newGetURLStatsHandler(finder URLFinder) http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, newURLStatsResponse(found))
+		writeJSON(w, http.StatusOK, newURLStatsResponse(found, baseURL))
 	}
 }
 
@@ -187,22 +189,24 @@ func newRedirectHandler(redirector URLRedirector, statusCode int) http.HandlerFu
 	}
 }
 
-func newURLResponse(record urlmodel.URL) urlResponse {
+func newURLResponse(record urlmodel.URL, baseURL string) urlResponse {
 	return urlResponse{
 		ID:        record.ID,
 		URL:       record.LongURL,
 		ShortCode: record.ShortCode,
+		ShortURL:  buildShortURL(baseURL, record.ShortCode),
 		CreatedAt: record.CreatedAt,
 		UpdatedAt: record.UpdatedAt,
 		ExpiresAt: record.ExpiresAt,
 	}
 }
 
-func newURLStatsResponse(record urlmodel.URL) urlStatsResponse {
+func newURLStatsResponse(record urlmodel.URL, baseURL string) urlStatsResponse {
 	return urlStatsResponse{
 		ID:             record.ID,
 		URL:            record.LongURL,
 		ShortCode:      record.ShortCode,
+		ShortURL:       buildShortURL(baseURL, record.ShortCode),
 		AccessCount:    record.AccessCount,
 		CreatedAt:      record.CreatedAt,
 		UpdatedAt:      record.UpdatedAt,
