@@ -7,18 +7,21 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
+	"github.com/tapadar13/url-shortener/apps/api/internal/url/service"
 )
 
 type fakeURLLister struct {
 	ownerID string
 	limit   int64
+	cursor  string
 	urls    []urlmodel.URL
 }
 
-func (l *fakeURLLister) ListByOwner(_ context.Context, ownerID string, limit int64) ([]urlmodel.URL, error) {
-	l.ownerID = ownerID
-	l.limit = limit
-	return l.urls, nil
+func (l *fakeURLLister) ListPageByOwner(_ context.Context, params service.ListParams) (service.ListPage, error) {
+	l.ownerID = params.OwnerID
+	l.limit = params.Limit
+	l.cursor = params.Cursor
+	return service.ListPage{Items: l.urls, NextCursor: "next-page"}, nil
 }
 
 func TestRouterListsAuthenticatedUserURLs(t *testing.T) {
@@ -31,10 +34,10 @@ func TestRouterListsAuthenticatedUserURLs(t *testing.T) {
 	})
 	router.Get("/shorten", newListURLHandler(lister))
 
-	response := executeRequestWithBody(t, router, http.MethodGet, "/shorten?limit=10", "")
+	response := executeRequestWithBody(t, router, http.MethodGet, "/shorten?limit=10&cursor=current-page", "")
 	assertStatus(t, response, http.StatusOK)
-	if lister.ownerID != "owner-1" || lister.limit != 10 {
-		t.Fatalf("unexpected list request: owner=%q limit=%d", lister.ownerID, lister.limit)
+	if lister.ownerID != "owner-1" || lister.limit != 10 || lister.cursor != "current-page" {
+		t.Fatalf("unexpected list request: owner=%q limit=%d cursor=%q", lister.ownerID, lister.limit, lister.cursor)
 	}
 }
 
