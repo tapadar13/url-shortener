@@ -30,7 +30,11 @@ describe("DashboardShell", () => {
     vi.stubGlobal("fetch", sessionFetch(401))
     renderDashboard()
 
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/login"))
+    await waitFor(() =>
+      expect(navigation.replace).toHaveBeenCalledWith(
+        "/login?returnTo=%2Fdashboard"
+      )
+    )
   })
 
   it("shows a recoverable API outage state", async () => {
