@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -32,12 +33,19 @@ func TestRouterListsAuthenticatedUserURLs(t *testing.T) {
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authContextKey{}, "owner-1")))
 		})
 	})
-	router.Get("/shorten", newListURLHandler(lister))
+	router.Get("/shorten", newListURLHandler(lister, "https://sho.rt"))
 
 	response := executeRequestWithBody(t, router, http.MethodGet, "/shorten?limit=10&cursor=current-page", "")
 	assertStatus(t, response, http.StatusOK)
 	if lister.ownerID != "owner-1" || lister.limit != 10 || lister.cursor != "current-page" {
 		t.Fatalf("unexpected list request: owner=%q limit=%d cursor=%q", lister.ownerID, lister.limit, lister.cursor)
+	}
+	var body urlListResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("expected JSON response: %v", err)
+	}
+	if len(body.Items) != 1 || body.Items[0].ShortURL != "https://sho.rt/AbC123" {
+		t.Fatalf("expected canonical short URL in list response, got %#v", body.Items)
 	}
 }
 
@@ -46,7 +54,7 @@ func TestListURLHandlerRejectsInvalidLimit(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/shorten", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), authContextKey{}, "owner-1")
-		newListURLHandler(lister)(w, r.WithContext(ctx))
+		newListURLHandler(lister, "")(w, r.WithContext(ctx))
 	})
 
 	response := executeRequestWithBody(t, router, http.MethodGet, "/shorten?limit=invalid", "")
