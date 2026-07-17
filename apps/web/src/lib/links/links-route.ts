@@ -5,6 +5,7 @@ import {
 import { requestAuthenticatedAPI } from "@/lib/auth/authenticated-client"
 import { isSameOriginRequest } from "@/lib/security/request-origin"
 
+import { allowedQuery } from "./route-params"
 import type {
   CreateLinkInput,
   ShortLink,
@@ -32,7 +33,7 @@ export function createLinksRoute(
 ) {
   return {
     GET: async (request: Request): Promise<Response> => {
-      const query = linkListQuery(request.url)
+      const query = allowedQuery(request.url, ["limit", "cursor"])
 
       try {
         const page = await dependencies.list(query, request.signal)
@@ -70,21 +71,6 @@ export function createLinksRoute(
       }
     },
   }
-}
-
-function linkListQuery(requestURL: string): string {
-  const source = new URL(requestURL).searchParams
-  const target = new URLSearchParams()
-
-  for (const name of ["limit", "cursor"] as const) {
-    const value = source.get(name)
-    if (value !== null) {
-      target.set(name, value)
-    }
-  }
-
-  const query = target.toString()
-  return query ? `?${query}` : ""
 }
 
 function isCreateLinkInput(value: unknown): value is CreateLinkInput {

@@ -15,6 +15,24 @@ export function shortLinkAPIPath(shortCode: string, suffix = ""): string {
   return `/shorten/${encodeURIComponent(shortCode)}${suffix}`
 }
 
+export function allowedQuery(
+  requestURL: string,
+  names: readonly string[]
+): string {
+  const source = new URL(requestURL).searchParams
+  const target = new URLSearchParams()
+
+  for (const name of names) {
+    const value = source.get(name)
+    if (value !== null) {
+      target.set(name, value)
+    }
+  }
+
+  const query = target.toString()
+  return query ? `?${query}` : ""
+}
+
 export function invalidShortCodeResponse(): Response {
   return apiErrorResponse(400, "invalid_short_code", "short code is invalid")
 }
