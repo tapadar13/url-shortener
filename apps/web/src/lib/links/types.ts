@@ -18,6 +18,19 @@ export interface LinkStats extends ShortLink {
   lastAccessedAt?: string
 }
 
+export interface DailyClicks {
+  date: string
+  clicks: number
+}
+
+export interface LinkAnalytics {
+  shortCode: string
+  from: string
+  to: string
+  totalClicks: number
+  daily: DailyClicks[]
+}
+
 /** Temporary workspace shape used by the mock adapter until API migration. */
 
 export interface LinkRecord {
