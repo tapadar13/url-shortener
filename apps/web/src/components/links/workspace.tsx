@@ -2,15 +2,26 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import Link from "next/link"
-import { ArrowLeft, BarChart3, Link2, Plus, Settings2 } from "lucide-react"
+import { useRouter } from "next/navigation"
+import {
+  ArrowLeft,
+  BarChart3,
+  Link2,
+  LoaderCircle,
+  LogOut,
+  Plus,
+  Settings2,
+} from "lucide-react"
 
 import { GithubMark } from "@/components/icons"
 import { LinksList } from "@/components/links/links-list"
 import { ShortenPanel } from "@/components/links/shorten-panel"
 import { Button } from "@/components/ui/button"
+import { useLogout } from "@/hooks/use-auth"
 import { useLinks } from "@/hooks/use-links"
 import { siteConfig } from "@/config/site"
 import { formatCount } from "@/lib/format"
+import type { AuthUser } from "@/lib/auth/types"
 
 function SidebarNavItem({
   icon: Icon,
@@ -49,9 +60,11 @@ function SidebarNavItem({
   )
 }
 
-export function Workspace() {
+export function Workspace({ user }: { user: AuthUser }) {
+  const router = useRouter()
   const shortenInputRef = useRef<HTMLInputElement>(null)
   const linksQuery = useLinks()
+  const logout = useLogout()
   const total = linksQuery.data?.pages[0]?.total
 
   const focusShortenInput = useCallback(() => {
@@ -99,7 +112,7 @@ export function Workspace() {
             <p className="text-[9px] font-semibold tracking-[0.14em] text-foreground/45 uppercase">
               Workspace
             </p>
-            <p className="mt-1.5 text-sm font-medium">Launch team</p>
+            <p className="mt-1.5 text-sm font-medium">Personal workspace</p>
             <p className="mt-0.5 text-xs text-muted-foreground/80">
               {total === undefined ? "…" : `${formatCount(total)} active links`}
             </p>
@@ -135,13 +148,34 @@ export function Workspace() {
               app.{siteConfig.shortHost}
             </p>
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-2 rounded-full border border-foreground/10 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+              <span
+                className="hidden max-w-48 truncate rounded-full border border-foreground/10 bg-card/70 px-3 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:block"
+                title={user.email}
+              >
                 <span
-                  className="size-1.5 rounded-full bg-brand shadow-[0_0_0_3px_var(--brand-muted)]"
+                  className="mr-2 inline-block size-1.5 rounded-full bg-brand shadow-[0_0_0_3px_var(--brand-muted)]"
                   aria-hidden="true"
                 />
-                Preview workspace
+                {user.email}
               </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Sign out"
+                title="Sign out"
+                disabled={logout.isPending}
+                onClick={() =>
+                  logout.mutate(undefined, {
+                    onSettled: () => router.replace("/"),
+                  })
+                }
+              >
+                {logout.isPending ? (
+                  <LoaderCircle className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <LogOut aria-hidden="true" />
+                )}
+              </Button>
               <a
                 href={siteConfig.repoUrl}
                 target="_blank"
@@ -159,9 +193,9 @@ export function Workspace() {
           <div className="animate-fade-up flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-sm text-muted-foreground/80">
-                Good to see you, Maya
+                Your authenticated workspace
               </p>
-              <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
+              <h1 className="mt-1 text-2xl font-semibold tracking-normal sm:text-3xl">
                 Your links
               </h1>
             </div>

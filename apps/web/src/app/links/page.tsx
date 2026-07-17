@@ -1,5 +1,5 @@
-import { Workspace } from "@/components/links/workspace"
+import { redirect } from "next/navigation"
 
 export default function LinksPage() {
-  return <Workspace />
+  redirect("/dashboard")
 }
