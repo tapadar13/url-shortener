@@ -10,8 +10,8 @@ import (
 )
 
 type urlListResponse struct {
-	Items      []urlResponse `json:"items"`
-	NextCursor string        `json:"nextCursor,omitempty"`
+	Items      []urlStatsResponse `json:"items"`
+	NextCursor string             `json:"nextCursor,omitempty"`
 }
 
 func newListURLHandler(lister URLLister, baseURL string) http.HandlerFunc {
@@ -46,9 +46,9 @@ func newListURLHandler(lister URLLister, baseURL string) http.HandlerFunc {
 			}
 			return
 		}
-		responses := make([]urlResponse, 0, len(page.Items))
+		responses := make([]urlStatsResponse, 0, len(page.Items))
 		for _, record := range page.Items {
-			responses = append(responses, newURLResponse(record, baseURL))
+			responses = append(responses, newURLStatsResponse(record, baseURL))
 		}
 		writeJSON(w, http.StatusOK, urlListResponse{Items: responses, NextCursor: page.NextCursor})
 	}
