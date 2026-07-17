@@ -29,6 +29,7 @@ deploy/
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
 - Prometheus-compatible request metrics grouped by route and status class
+- Container-native API readiness checks that gate dependent service startup
 - Email/password authentication with Bearer access tokens, rotating refresh sessions, logout, and URL ownership
 - Same-origin Next.js backend-for-frontend with secure HTTP-only session cookies
 - Authenticated link workspace with cursor pagination, custom codes, expiration, and daily analytics
@@ -332,7 +333,7 @@ GET /readyz
 ```
 
 - `/healthz` confirms that the HTTP process is running.
-- `/readyz` additionally confirms that MongoDB can be reached. It returns `503 Service Unavailable` with `not_ready` when the dependency is unavailable.
+- `/readyz` additionally confirms that MongoDB can be reached. It returns `503 Service Unavailable` with `not_ready` when the dependency is unavailable. The API container uses this endpoint for its built-in health check, and Compose waits for it before starting the frontend.
 
 ```bash
 curl -i http://localhost:8080/healthz
