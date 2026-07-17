@@ -86,6 +86,26 @@ func TestServiceCreateCreatesURL(t *testing.T) {
 	}
 }
 
+func TestServiceCreateAssignsOwnerToGeneratedURL(t *testing.T) {
+	t.Parallel()
+
+	service := newTestService(t, &fakeRepository{}, &fakeGenerator{
+		codes: []string{"AbC1234"},
+	}, Options{Now: fixedTime})
+
+	created, err := service.Create(context.Background(), CreateParams{
+		LongURL: "https://example.com/articles/123",
+		OwnerID: "owner-1",
+	})
+	if err != nil {
+		t.Fatalf("expected URL to be created: %v", err)
+	}
+
+	if created.OwnerID != "owner-1" {
+		t.Fatalf("expected generated URL owner owner-1, got %q", created.OwnerID)
+	}
+}
+
 func TestServiceCreateCreatesExpiringURL(t *testing.T) {
 	t.Parallel()
 
