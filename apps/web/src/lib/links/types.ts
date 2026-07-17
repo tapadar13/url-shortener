@@ -9,7 +9,7 @@ export interface ShortLink {
 }
 
 export interface ShortLinkListPage {
-  items: ShortLink[]
+  items: LinkStats[]
   nextCursor?: string
 }
 
