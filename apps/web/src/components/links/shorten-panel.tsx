@@ -1,16 +1,41 @@
 "use client"
 
 import { useState, type RefObject } from "react"
-import { Check, Copy, Link2, Loader2, Settings2, Sparkles, X } from "lucide-react"
+import {
+  CalendarClock,
+  Check,
+  ChevronDown,
+  Copy,
+  Link2,
+  Loader2,
+  Settings2,
+  Sparkles,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCreateLink } from "@/hooks/use-links"
 import { siteConfig } from "@/config/site"
 import { displayShortUrl } from "@/lib/format"
 import { linkErrorMessage } from "@/lib/links/error-message"
+import {
+  defaultCustomExpiration,
+  expirationOptions,
+  expirationStatus,
+  minimumCustomExpiration,
+  resolveExpiration,
+  type ExpirationPreset,
+} from "@/lib/links/expiration"
 import type { ShortLink } from "@/lib/links/types"
 import { cn } from "@/lib/utils"
 
@@ -21,34 +46,62 @@ interface ShortenPanelProps {
 export function ShortenPanel({ inputRef }: ShortenPanelProps) {
   const [url, setUrl] = useState("")
   const [customCode, setCustomCode] = useState("")
-  const [customizeOpen, setCustomizeOpen] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [expirationPreset, setExpirationPreset] =
+    useState<ExpirationPreset>("never")
+  const [customExpiration, setCustomExpiration] = useState("")
+  const [formError, setFormError] = useState<string | null>(null)
+  const [expirationError, setExpirationError] = useState<string | null>(null)
   const [lastCreated, setLastCreated] = useState<ShortLink | null>(null)
   const [copied, setCopied] = useState(false)
   const createLink = useCreateLink()
 
   const shortUrl = lastCreated ? displayShortUrl(lastCreated.shortUrl) : null
+  const createdExpiration = lastCreated?.expiresAt
+    ? expirationStatus(lastCreated.expiresAt)
+    : null
+  const selectedExpiration = expirationOptions.find(
+    (option) => option.value === expirationPreset
+  )
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     if (createLink.isPending) return
-    setError(null)
+    setFormError(null)
+    setExpirationError(null)
+
+    const expiration = resolveExpiration(
+      expirationPreset,
+      customExpiration
+    )
+    if (expiration.error) {
+      setExpirationError(expiration.error)
+      return
+    }
+
+    const normalizedCode = customCode.trim()
 
     createLink.mutate(
-      { url, shortCode: customizeOpen ? customCode : undefined },
+      {
+        url: url.trim(),
+        ...(normalizedCode ? { shortCode: normalizedCode } : {}),
+        ...(expiration.expiresAt ? { expiresAt: expiration.expiresAt } : {}),
+      },
       {
         onSuccess: (created) => {
           setLastCreated(created)
           setCopied(false)
           setUrl("")
           setCustomCode("")
-          setCustomizeOpen(false)
+          setOptionsOpen(false)
+          setExpirationPreset("never")
+          setCustomExpiration("")
           toast.success(`${displayShortUrl(created.shortUrl)} is live`, {
             description: "Ready to share — every visit will be counted.",
           })
         },
         onError: (mutationError) => {
-          setError(
+          setFormError(
             linkErrorMessage(
               mutationError,
               "Something went wrong. Try again."
@@ -104,15 +157,15 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
             <Input
               ref={inputRef}
               type="url"
+              required
               inputMode="url"
               value={url}
               onChange={(event) => {
                 setUrl(event.target.value)
-                if (error) setError(null)
+                if (formError) setFormError(null)
               }}
               placeholder="https://paste-something-long-and-messy.com/here"
               aria-label="Destination URL"
-              aria-invalid={error ? true : undefined}
               className="h-11 rounded-xl border-foreground/12 bg-background pl-9 font-mono text-xs shadow-none sm:text-[13px]"
             />
           </div>
@@ -136,31 +189,31 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
           </Button>
         </div>
 
-        {error && (
+        {formError && (
           <p role="alert" className="mt-2 text-xs text-destructive">
-            {error}
+            {formError}
           </p>
         )}
 
         <div className="mt-3 flex items-center justify-between">
           <button
             type="button"
-            onClick={() => setCustomizeOpen((open) => !open)}
-            aria-expanded={customizeOpen}
+            onClick={() => setOptionsOpen((open) => !open)}
+            aria-expanded={optionsOpen}
             className="flex items-center gap-1.5 rounded-md text-xs text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring"
           >
-            {customizeOpen ? (
+            {optionsOpen ? (
               <X className="size-3" aria-hidden="true" />
             ) : (
               <Settings2 className="size-3" aria-hidden="true" />
             )}
-            {customizeOpen ? "Use a random code" : "Customize the code"}
+            {optionsOpen ? "Hide link options" : "Link options"}
           </button>
         </div>
 
-        {customizeOpen && (
-          <div className="animate-fade-up mt-3 flex flex-wrap items-end gap-x-3 gap-y-2 [animation-duration:0.35s]">
-            <div className="min-w-0">
+        {optionsOpen && (
+          <div className="animate-fade-up mt-3 grid gap-4 rounded-xl border border-foreground/8 bg-background/55 p-3.5 [animation-duration:0.35s] sm:grid-cols-2">
+            <div className="min-w-0 space-y-1.5">
               <Label
                 htmlFor="custom-code"
                 className="text-xs text-muted-foreground"
@@ -176,17 +229,101 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
                   value={customCode}
                   onChange={(event) => {
                     setCustomCode(event.target.value)
-                    if (error) setError(null)
+                    if (formError) setFormError(null)
                   }}
-                  placeholder="launch-week"
-                  maxLength={20}
-                  className="h-9 w-44 rounded-lg border-foreground/12 bg-background font-mono text-xs shadow-none"
+                  placeholder="launch2026"
+                  pattern="[A-Za-z0-9]{4,32}"
+                  maxLength={32}
+                  className="h-9 min-w-0 flex-1 rounded-lg border-foreground/12 bg-background font-mono text-xs shadow-none"
                 />
               </div>
+              <p className="text-[11px] text-muted-foreground/70">
+                4–32 letters or numbers. Empty generates a random code.
+              </p>
             </div>
-            <p className="pb-2 text-[11px] text-muted-foreground/70">
-              4–20 letters or numbers. Leave empty for a random one.
-            </p>
+
+            <div className="min-w-0 space-y-1.5">
+              <Label
+                htmlFor={
+                  expirationPreset === "custom"
+                    ? "custom-expiration"
+                    : undefined
+                }
+                className="text-xs text-muted-foreground"
+              >
+                Expiration
+              </Label>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full justify-start bg-background px-2.5 text-xs font-normal"
+                  >
+                    <CalendarClock data-icon="inline-start" aria-hidden="true" />
+                    <span className="truncate">
+                      {selectedExpiration?.label ?? "Never"}
+                    </span>
+                    <ChevronDown className="ml-auto" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuRadioGroup
+                    value={expirationPreset}
+                    onValueChange={(value) => {
+                      const preset = value as ExpirationPreset
+                      setExpirationPreset(preset)
+                      setExpirationError(null)
+                      if (preset === "custom" && !customExpiration) {
+                        setCustomExpiration(defaultCustomExpiration())
+                      }
+                    }}
+                  >
+                    {expirationOptions.map((option) => (
+                      <DropdownMenuRadioItem
+                        key={option.value}
+                        value={option.value}
+                      >
+                        {option.label}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {expirationPreset === "custom" && (
+                <Input
+                  id="custom-expiration"
+                  type="datetime-local"
+                  required
+                  min={minimumCustomExpiration()}
+                  value={customExpiration}
+                  onChange={(event) => {
+                    setCustomExpiration(event.target.value)
+                    setExpirationError(null)
+                  }}
+                  aria-invalid={expirationError ? true : undefined}
+                  aria-describedby={
+                    expirationError ? "custom-expiration-error" : undefined
+                  }
+                  className="h-9 rounded-lg border-foreground/12 bg-background font-mono text-xs shadow-none"
+                />
+              )}
+
+              {expirationError ? (
+                <p
+                  id="custom-expiration-error"
+                  role="alert"
+                  className="text-[11px] text-destructive"
+                >
+                  {expirationError}
+                </p>
+              ) : (
+                <p className="text-[11px] text-muted-foreground/70">
+                  Redirects stop after this time.
+                </p>
+              )}
+            </div>
           </div>
         )}
       </form>
@@ -217,8 +354,11 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
             )}
             {copied ? "Copied" : "Copy"}
           </Button>
-          <span className="ml-auto text-[11px] text-muted-foreground/80">
-            ready to share
+          <span
+            className="ml-auto text-[11px] text-muted-foreground/80"
+            title={createdExpiration?.title}
+          >
+            {createdExpiration?.label ?? "ready to share"}
           </span>
         </div>
       )}
