@@ -183,10 +183,7 @@ func (r *Repository) findByShortCode(ctx context.Context, shortCode, ownerID str
 		return urlmodel.URL{}, err
 	}
 
-	filter := r.activeShortCodeFilter(normalizedShortCode)
-	if ownerID != "" {
-		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
-	}
+	filter := r.operationShortCodeFilter(normalizedShortCode, ownerID)
 	result := r.collection.FindOne(ctx, filter)
 	if result == nil {
 		return urlmodel.URL{}, errors.New("find URL by short code: missing result")
@@ -235,10 +232,7 @@ func (r *Repository) updateLongURL(ctx context.Context, params urlmodel.UpdateLo
 	}
 
 	updatedAt := params.UpdatedAt.UTC()
-	filter := r.activeShortCodeFilter(normalizedShortCode)
-	if ownerID != "" {
-		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
-	}
+	filter := r.operationShortCodeFilter(normalizedShortCode, ownerID)
 	result := r.collection.FindOneAndUpdate(
 		ctx,
 		filter,
@@ -285,10 +279,7 @@ func (r *Repository) deleteByShortCode(ctx context.Context, shortCode, ownerID s
 		return err
 	}
 
-	filter := r.activeShortCodeFilter(normalizedShortCode)
-	if ownerID != "" {
-		filter = append(filter, bson.E{Key: "owner_id", Value: ownerID})
-	}
+	filter := r.operationShortCodeFilter(normalizedShortCode, ownerID)
 	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("delete URL by short code: %w", err)
@@ -360,5 +351,17 @@ func (r *Repository) activeShortCodeFilter(shortCode string) bson.D {
 			bson.D{{Key: "expires_at", Value: nil}},
 			bson.D{{Key: "expires_at", Value: bson.D{{Key: "$gt", Value: now().UTC()}}}},
 		}},
+	}
+}
+
+func (r *Repository) operationShortCodeFilter(shortCode, ownerID string) bson.D {
+	if ownerID == "" {
+		return r.activeShortCodeFilter(shortCode)
+	}
+
+	// Owners retain management access after a link stops redirecting.
+	return bson.D{
+		{Key: "short_code", Value: shortCode},
+		{Key: "owner_id", Value: ownerID},
 	}
 }
