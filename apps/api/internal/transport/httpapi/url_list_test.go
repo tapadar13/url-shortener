@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	urlmodel "github.com/tapadar13/url-shortener/apps/api/internal/url"
@@ -26,7 +27,14 @@ func (l *fakeURLLister) ListPageByOwner(_ context.Context, params service.ListPa
 }
 
 func TestRouterListsAuthenticatedUserURLs(t *testing.T) {
-	lister := &fakeURLLister{urls: []urlmodel.URL{{ID: "url-1", ShortCode: "AbC123", LongURL: "https://example.com"}}}
+	lastAccessedAt := time.Date(2026, 7, 17, 9, 15, 0, 0, time.UTC)
+	lister := &fakeURLLister{urls: []urlmodel.URL{{
+		ID:             "url-1",
+		ShortCode:      "AbC123",
+		LongURL:        "https://example.com",
+		AccessCount:    42,
+		LastAccessedAt: &lastAccessedAt,
+	}}}
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -44,8 +52,12 @@ func TestRouterListsAuthenticatedUserURLs(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("expected JSON response: %v", err)
 	}
-	if len(body.Items) != 1 || body.Items[0].ShortURL != "https://sho.rt/AbC123" {
-		t.Fatalf("expected canonical short URL in list response, got %#v", body.Items)
+	if len(body.Items) != 1 ||
+		body.Items[0].ShortURL != "https://sho.rt/AbC123" ||
+		body.Items[0].AccessCount != 42 ||
+		body.Items[0].LastAccessedAt == nil ||
+		!body.Items[0].LastAccessedAt.Equal(lastAccessedAt) {
+		t.Fatalf("expected canonical URL and statistics in list response, got %#v", body.Items)
 	}
 }
 

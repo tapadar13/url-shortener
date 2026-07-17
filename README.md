@@ -1,17 +1,17 @@
 # URL Shortener
 
-A production-minded URL shortening service with a Go + MongoDB API and a Next.js marketing frontend.
+A production-minded URL shortening service with a Go + MongoDB API and a Next.js application.
 
-The API creates short links, manages destinations, returns link statistics and daily analytics, and redirects visitors while recording access counts.
+The API creates short links, manages destinations, returns link statistics and daily analytics, and redirects visitors while recording access counts. The web app provides authentication, link management, expiration controls, and analytics visualization through a same-origin backend-for-frontend layer.
 
 ## Project Layout
 
 ```text
 apps/
   api/    Go HTTP API and MongoDB persistence
-  web/    Next.js marketing frontend
+  web/    Next.js landing page and authenticated workspace
 deploy/
-  docker-compose.yml    Local API, MongoDB, and Redis stack
+  docker-compose.yml    Local web, API, MongoDB, and Redis stack
 ```
 
 ## Current Features
@@ -29,7 +29,10 @@ deploy/
 - Health and MongoDB-backed readiness probes
 - Structured request logs, request correlation IDs, and panic recovery
 - Prometheus-compatible request metrics grouped by route and status class
+- Container-native API readiness checks that gate dependent service startup
 - Email/password authentication with Bearer access tokens, rotating refresh sessions, logout, and URL ownership
+- Same-origin Next.js backend-for-frontend with secure HTTP-only session cookies
+- Authenticated link workspace with cursor pagination, custom codes, expiration, and daily analytics
 - Graceful API shutdown with MongoDB, Redis, access-recorder, and analytics-recorder lifecycle management
 
 ## Prerequisites
@@ -66,19 +69,23 @@ go run ./cmd/api
 
 The API listens on `http://localhost:8080` by default.
 
-Run the complete containerized API stack:
-
-```bash
-docker compose -f deploy/docker-compose.yml up --build
-```
-
 Run the frontend in a second terminal:
 
 ```bash
 cd apps/web
-npm install
+npm ci
 npm run dev
 ```
+
+The frontend listens on `http://localhost:3000` and uses `API_BASE_URL=http://localhost:8080` by default.
+
+Alternatively, run the complete containerized stack from the repository root:
+
+```bash
+make stack-up
+```
+
+This starts the web app on `http://localhost:3000`, the API on `http://localhost:8080`, MongoDB, and Redis. Replace the example `AUTH_TOKEN_SECRET` before using the Compose configuration outside local development.
 
 ## Common Commands
 
@@ -175,7 +182,7 @@ GET /shorten?limit=25
 Authorization: Bearer <access-token>
 ```
 
-Returns the authenticated user’s newest short URLs. `limit` defaults to `25` and must be between `1` and `100`.
+Returns the authenticated user’s newest short URLs with their current visit statistics. `limit` defaults to `25` and must be between `1` and `100`.
 
 ```json
 {
@@ -185,8 +192,10 @@ Returns the authenticated user’s newest short URLs. `limit` defaults to `25` a
       "url": "https://example.com/articles/123",
       "shortCode": "AbC1234",
       "shortUrl": "http://localhost:8080/AbC1234",
+      "accessCount": 42,
       "createdAt": "2026-07-12T08:00:00Z",
-      "updatedAt": "2026-07-12T08:00:00Z"
+      "updatedAt": "2026-07-12T08:00:00Z",
+      "lastAccessedAt": "2026-07-17T09:15:00Z"
     }
   ],
   "nextCursor": "eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTA3LTEyVDA4OjAwOjAwWiIsImlkIjoiNTA3ZjFmNzdiY2Y4NmNkNzk5NDM5MDExIn0"
@@ -324,7 +333,7 @@ GET /readyz
 ```
 
 - `/healthz` confirms that the HTTP process is running.
-- `/readyz` additionally confirms that MongoDB can be reached. It returns `503 Service Unavailable` with `not_ready` when the dependency is unavailable.
+- `/readyz` additionally confirms that MongoDB can be reached. It returns `503 Service Unavailable` with `not_ready` when the dependency is unavailable. The API container uses this endpoint for its built-in health check, and Compose waits for it before starting the frontend.
 
 ```bash
 curl -i http://localhost:8080/healthz
@@ -407,6 +416,12 @@ curl -i http://localhost:8080/metrics
 | `MAX_REQUEST_BODY_BYTES` | `1048576` | Maximum request body size, from 1 byte to 10 MiB |
 | `SHUTDOWN_TIMEOUT` | `10s` | Graceful shutdown deadline |
 
+The frontend uses one server-only environment variable:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `API_BASE_URL` | `http://localhost:8080` | Internal API origin used by Next.js route handlers; Compose uses `http://api:8080` |
+
 ## Verification
 
 Run the API checks:
@@ -433,5 +448,6 @@ Run the frontend checks:
 ```bash
 cd apps/web
 npm run lint
+npm run test
 npm run build
 ```

@@ -132,6 +132,7 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (urlmodel.URL
 
 		record, err := urlmodel.New(urlmodel.NewParams{
 			LongURL:   params.LongURL,
+			OwnerID:   params.OwnerID,
 			ShortCode: shortCode,
 			Now:       s.now(),
 			ExpiresAt: params.ExpiresAt,

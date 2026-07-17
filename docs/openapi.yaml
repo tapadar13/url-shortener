@@ -725,7 +725,7 @@ components:
         items:
           type: array
           items:
-            $ref: '#/components/schemas/URL'
+            $ref: '#/components/schemas/URLStats'
         nextCursor:
           type: string
           description: Opaque cursor for the next page. Omitted when no further results exist.

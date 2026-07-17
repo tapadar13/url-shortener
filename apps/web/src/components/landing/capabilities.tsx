@@ -1,231 +1,113 @@
-import { ArrowDown, Check, Copy, Link2 } from "lucide-react"
+import {
+  ArrowRight,
+  BarChart3,
+  Braces,
+  Check,
+  Copy,
+  Link2,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react"
 
-import { MockWindow } from "@/components/landing/mock-window"
 import { Reveal } from "@/components/landing/reveal"
 import { siteConfig } from "@/config/site"
-import { cn } from "@/lib/utils"
-
-function EndpointChip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center rounded-md border bg-muted/50 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-      {children}
-    </span>
-  )
-}
-
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[11px] font-medium text-muted-foreground">{children}</p>
-  )
-}
-
-function CreateMockup() {
-  return (
-    <MockWindow url={`app.${siteConfig.shortHost}/new`}>
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">Shorten a link</p>
-          <EndpointChip>POST /shorten</EndpointChip>
-        </div>
-        <div>
-          <FieldLabel>Destination</FieldLabel>
-          <div className="mt-1 flex h-9 items-center gap-2 rounded-md border bg-background px-3">
-            <Link2
-              className="size-3.5 shrink-0 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <span className="truncate font-mono text-xs">
-              https://docs.example.com/changelog/2026-june-release-notes
-            </span>
-          </div>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            HTTP and HTTPS destinations are validated before a code is issued.
-          </p>
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-brand/30 bg-brand-muted/60 px-3 py-2.5">
-          <span className="font-mono text-xs font-medium text-brand">
-            {siteConfig.shortHost}/Q9mBf3
-          </span>
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Copy className="size-3" aria-hidden="true" />
-            Copy
-          </span>
-        </div>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          6-char Base62 · unique index checked · 201 Created
-        </p>
-      </div>
-    </MockWindow>
-  )
-}
-
-function ManageMockup() {
-  return (
-    <MockWindow url={`app.${siteConfig.shortHost}/links/x7Kd2a`}>
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-sm font-medium">
-            {siteConfig.shortHost}/x7Kd2a
-          </p>
-          <EndpointChip>PUT /shorten/x7Kd2a</EndpointChip>
-        </div>
-        <div>
-          <FieldLabel>Current destination</FieldLabel>
-          <div className="mt-1 flex h-9 items-center rounded-md border bg-muted/40 px-3">
-            <span className="truncate font-mono text-xs text-muted-foreground line-through">
-              example.com/spring-launch/announcement
-            </span>
-          </div>
-        </div>
-        <div className="flex justify-center" aria-hidden="true">
-          <ArrowDown className="size-3.5 text-muted-foreground/60" />
-        </div>
-        <div>
-          <FieldLabel>New destination</FieldLabel>
-          <div className="mt-1 flex h-9 items-center justify-between gap-2 rounded-md border border-brand/40 bg-background px-3">
-            <span className="truncate font-mono text-xs">
-              example.com/summer-launch/announcement
-            </span>
-            <span className="shrink-0 rounded bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground">
-              Save
-            </span>
-          </div>
-        </div>
-        <p className="font-mono text-[11px] text-muted-foreground">
-          same short code · updated_at refreshed · visits preserved
-        </p>
-      </div>
-    </MockWindow>
-  )
-}
-
-function StatsMockup() {
-  return (
-    <MockWindow url={`app.${siteConfig.shortHost}/links/x7Kd2a/stats`}>
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between">
-          <p className="font-mono text-sm font-medium">
-            {siteConfig.shortHost}/x7Kd2a
-          </p>
-          <EndpointChip>GET /shorten/x7Kd2a/stats</EndpointChip>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-md border p-3">
-            <FieldLabel>Total visits</FieldLabel>
-            <p className="mt-1 font-mono text-2xl font-semibold tabular-nums">
-              1,284
-            </p>
-          </div>
-          <div className="rounded-md border p-3">
-            <FieldLabel>Last visit</FieldLabel>
-            <p className="mt-1 font-mono text-2xl font-semibold">2m ago</p>
-          </div>
-        </div>
-        <div className="space-y-1.5 rounded-md border p-3 text-[11px] text-muted-foreground">
-          <p className="flex items-center justify-between">
-            <span>Created</span>
-            <span className="font-mono text-foreground">Jun 12, 09:41 UTC</span>
-          </p>
-          <p className="flex items-center justify-between">
-            <span>Destination updated</span>
-            <span className="font-mono text-foreground">Jul 1, 14:03 UTC</span>
-          </p>
-          <p className="flex items-center justify-between">
-            <span>Last visited</span>
-            <span className="font-mono text-foreground">Jul 10, 08:12 UTC</span>
-          </p>
-        </div>
-      </div>
-    </MockWindow>
-  )
-}
-
-const capabilities = [
-  {
-    eyebrow: "Create",
-    title: "Clean short links, on the first try",
-    body: "Paste any web address and get back a compact six-character link. Every code is checked for uniqueness before it's issued — so the link you share is yours, and yours alone.",
-    bullets: [
-      "Destinations validated before a link is created",
-      "Unique codes, guaranteed — collisions retried automatically",
-      "The same clean JSON API behind every action",
-    ],
-    mockup: CreateMockup,
-  },
-  {
-    eyebrow: "Manage",
-    title: "Change where a link points — anytime",
-    body: "A short link shouldn't be a one-way door. Point an existing link at a new destination without breaking anything you've already shared: the short link stays the same, and its visit history carries over.",
-    bullets: [
-      "Update the destination; the short link never changes",
-      "Every change is timestamped",
-      "Delete links you're finished with",
-    ],
-    mockup: ManageMockup,
-  },
-  {
-    eyebrow: "Measure",
-    title: "Know exactly how often it's opened",
-    body: "Every visit bumps one honest counter the moment the redirect happens. You get the numbers that matter — total visits and when they happened — without a vanity dashboard in the way.",
-    bullets: [
-      "Visits counted at the moment of redirect",
-      "Last-visit and lifecycle timestamps per link",
-      "The same stats, available over the API",
-    ],
-    mockup: StatsMockup,
-  },
-] as const
 
 export function Capabilities() {
   return (
-    <section id="product">
-      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 sm:py-28">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
-            Product
-          </p>
-          <h2 className="mt-3 text-3xl font-semibold text-balance sm:text-4xl">
-            Everything a link needs. Nothing it doesn&apos;t.
-          </h2>
-          <p className="mt-4 text-base text-pretty text-muted-foreground">
-            Create a link, change where it points, and see how it performs —
-            the entire lifecycle in one focused workspace.
+    <section id="product" className="relative border-y border-foreground/8 bg-card/55">
+      <div aria-hidden="true" className="noise pointer-events-none absolute inset-0 opacity-[0.018]" />
+      <div className="relative mx-auto max-w-[78rem] px-4 py-24 sm:px-6 sm:py-32 lg:px-8">
+        <Reveal className="grid items-end gap-6 lg:grid-cols-[1fr_0.72fr]">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.16em] text-foreground/42 uppercase">The entire link lifecycle</p>
+            <h2 className="mt-5 max-w-3xl text-4xl font-semibold leading-[0.98] tracking-[-0.055em] text-balance sm:text-5xl lg:text-6xl">
+              Everything your link needs. <span className="text-foreground/35">Nothing it doesn&apos;t.</span>
+            </h2>
+          </div>
+          <p className="max-w-xl text-base leading-7 text-pretty text-muted-foreground lg:justify-self-end">
+            Most link tools bury a simple job under campaign software. Relay
+            keeps the three moments that matter—create, control, understand—in
+            one exceptionally clear workspace.
           </p>
         </Reveal>
 
-        <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
-          {capabilities.map((capability, index) => (
-            <div
-              key={capability.title}
-              className="grid items-center gap-8 lg:grid-cols-2 lg:gap-16"
-            >
-              <Reveal className={cn(index % 2 === 1 && "lg:order-last")}>
-                <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
-                  {capability.eyebrow}
-                </p>
-                <h3 className="mt-3 text-2xl font-semibold text-balance">
-                  {capability.title}
-                </h3>
-                <p className="mt-3 text-pretty text-muted-foreground">
-                  {capability.body}
-                </p>
-                <ul className="mt-5 space-y-2.5">
-                  {capability.bullets.map((bullet) => (
-                    <li key={bullet} className="flex items-start gap-2.5">
-                      <Check
-                        className="mt-0.5 size-4 shrink-0 text-brand"
-                        aria-hidden="true"
-                      />
-                      <span className="text-sm">{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              </Reveal>
-              <Reveal delay={120}>
-                <capability.mockup />
-              </Reveal>
-            </div>
-          ))}
+        <div className="mt-14 grid auto-rows-[minmax(15rem,auto)] gap-4 lg:grid-cols-12">
+          <Reveal className="lg:col-span-7 lg:row-span-2">
+            <article className="group relative flex h-full min-h-[32rem] flex-col overflow-hidden rounded-[2rem] border border-foreground/9 bg-foreground p-6 text-background shadow-[0_24px_80px_-48px_rgb(20_24_16/0.7)] sm:p-8">
+              <div aria-hidden="true" className="noise absolute inset-0 opacity-[0.04]" />
+              <div aria-hidden="true" className="absolute -right-20 -top-20 size-64 rounded-full bg-brand/12 blur-3xl transition-transform duration-700 group-hover:scale-125" />
+              <div className="relative flex items-start justify-between gap-4">
+                <div>
+                  <span className="inline-flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-brand"><Link2 className="size-4.5" aria-hidden="true" /></span>
+                  <h3 className="mt-6 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">From unwieldy to unforgettable.</h3>
+                  <p className="mt-3 max-w-lg text-sm leading-6 text-background/58 sm:text-base">
+                    Paste any valid destination. Relay issues a compact,
+                    collision-safe short code that is ready to share anywhere.
+                  </p>
+                </div>
+                <span className="hidden rounded-full border border-brand/20 bg-brand/8 px-3 py-1 text-[10px] font-semibold tracking-[0.12em] text-brand uppercase sm:inline-flex">Create</span>
+              </div>
+
+              <div className="relative mt-auto pt-10">
+                <div className="rounded-2xl border border-white/10 bg-[#10130e] p-3 shadow-[0_20px_60px_-28px_rgb(0_0_0/0.8)] sm:p-4">
+                  <p className="mb-2.5 text-[10px] font-medium text-white/35">Destination URL</p>
+                  <div className="flex gap-2">
+                    <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3"><Link2 className="size-3.5 shrink-0 text-white/25" /><span className="truncate font-mono text-[10px] text-white/56 sm:text-xs">https://yourcompany.com/launch/the-complete-story</span></div>
+                    <span className="flex h-11 shrink-0 items-center rounded-xl bg-brand px-4 text-xs font-semibold text-foreground">Shorten</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-brand/20 bg-brand/8 px-3 py-2.5">
+                    <span className="flex size-5 items-center justify-center rounded-full bg-brand text-foreground"><Check className="size-3" /></span>
+                    <span className="font-mono text-xs font-medium text-brand">{siteConfig.shortHost}/story</span>
+                    <Copy className="size-3.5 text-white/28" />
+                    <span className="ml-auto text-[10px] text-white/28">created just now</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </Reveal>
+
+          <Reveal delay={80} className="lg:col-span-5">
+            <article className="group relative flex h-full min-h-[15rem] flex-col overflow-hidden rounded-[2rem] border border-foreground/9 bg-[linear-gradient(145deg,var(--card),var(--brand-muted))] p-6 sm:p-7">
+              <div className="flex items-center justify-between"><span className="inline-flex size-10 items-center justify-center rounded-xl bg-foreground text-brand"><RefreshCw className="size-4.5 transition-transform duration-700 group-hover:rotate-180" aria-hidden="true" /></span><span className="text-[10px] font-semibold tracking-[0.12em] text-foreground/38 uppercase">Reroute</span></div>
+              <h3 className="mt-6 text-xl font-semibold tracking-[-0.035em]">Change the destination. Keep the link.</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Update a campaign, fix a mistake, or move a resource. Every existing share keeps working and its history stays intact.</p>
+              <div className="mt-5 flex items-center gap-2 font-mono text-[10px]"><span className="truncate text-muted-foreground line-through">/spring</span><ArrowRight className="size-3 text-foreground/30" /><span className="truncate font-medium text-foreground">/summer</span></div>
+            </article>
+          </Reveal>
+
+          <Reveal delay={120} className="lg:col-span-5">
+            <article className="group relative flex h-full min-h-[15rem] flex-col overflow-hidden rounded-[2rem] border border-foreground/9 bg-card p-6 sm:p-7">
+              <div className="flex items-center justify-between"><span className="inline-flex size-10 items-center justify-center rounded-xl bg-brand-muted text-foreground"><BarChart3 className="size-4.5" aria-hidden="true" /></span><span className="text-[10px] font-semibold tracking-[0.12em] text-foreground/38 uppercase">Measure</span></div>
+              <div className="mt-5 flex items-end justify-between gap-4"><div><p className="text-[10px] text-muted-foreground">Total visits</p><p className="mt-1 text-3xl font-semibold tracking-[-0.06em]">1,284</p></div><span className="mb-1 rounded-full bg-brand-muted px-2 py-1 text-[9px] font-semibold text-foreground">+18.4%</span></div>
+              <div className="mt-4 flex h-7 items-end gap-1" aria-hidden="true">{[32, 48, 41, 62, 56, 79, 70, 100].map((height, index) => <span key={index} className="flex-1 rounded-sm bg-foreground/12 transition-colors group-hover:bg-brand" style={{ height: `${height}%`, transitionDelay: `${index * 40}ms` }} />)}</div>
+            </article>
+          </Reveal>
+
+          <Reveal delay={80} className="lg:col-span-4">
+            <article className="flex h-full min-h-[15rem] flex-col rounded-[2rem] border border-foreground/9 bg-card p-6 sm:p-7">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-muted text-foreground"><Braces className="size-4.5" aria-hidden="true" /></span>
+              <h3 className="mt-6 text-xl font-semibold tracking-[-0.035em]">API-first, not API-later.</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">The same focused JSON contract behind the workspace is ready for your scripts and systems.</p>
+              <code className="mt-auto pt-5 text-[10px] text-foreground/45"><span className="text-brand-foreground">POST</span> /shorten</code>
+            </article>
+          </Reveal>
+
+          <Reveal delay={120} className="lg:col-span-4">
+            <article className="flex h-full min-h-[15rem] flex-col rounded-[2rem] border border-foreground/9 bg-card p-6 sm:p-7">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-muted text-foreground"><ShieldCheck className="size-4.5" aria-hidden="true" /></span>
+              <h3 className="mt-6 text-xl font-semibold tracking-[-0.035em]">Built for the boring guarantees.</h3>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">Unique codes, validated destinations, atomic visit counts, and graceful requests. Quietly dependable by design.</p>
+            </article>
+          </Reveal>
+
+          <Reveal delay={160} className="lg:col-span-4">
+            <article className="relative flex h-full min-h-[15rem] flex-col overflow-hidden rounded-[2rem] border border-brand/30 bg-brand p-6 text-foreground sm:p-7">
+              <Sparkles className="size-5" aria-hidden="true" />
+              <blockquote className="mt-6 text-xl font-semibold leading-snug tracking-[-0.035em]">“Links should feel simple again.”</blockquote>
+              <p className="mt-3 text-sm leading-6 text-foreground/65">No vanity layers. No maze of menus. Just a sharper way to create, control, and understand every share.</p>
+            </article>
+          </Reveal>
         </div>
       </div>
     </section>

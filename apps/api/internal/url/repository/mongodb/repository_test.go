@@ -273,6 +273,31 @@ func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
 	}
 }
 
+func TestRepositoryFindByShortCodeForOwnerIncludesExpiredURLs(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	expiresAt := record.CreatedAt.Add(-time.Hour)
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:        bson.NewObjectID(),
+			OwnerID:   "owner-1",
+			LongURL:   record.LongURL,
+			ShortCode: record.ShortCode,
+			CreatedAt: record.CreatedAt,
+			UpdatedAt: record.UpdatedAt,
+			ExpiresAt: &expiresAt,
+		}, nil, nil),
+	}
+	repository := newRepository(collection)
+
+	if _, err := repository.FindByShortCodeForOwner(context.Background(), "owner-1", record.ShortCode); err != nil {
+		t.Fatalf("expected expired owner URL to be found: %v", err)
+	}
+
+	assertOwnerShortCodeFilter(t, collection.filter, record.ShortCode, "owner-1")
+}
+
 func TestRepositoryFindByShortCodeMapsMissingDocument(t *testing.T) {
 	t.Parallel()
 
@@ -363,6 +388,37 @@ func TestRepositoryUpdateLongURLReturnsUpdatedURL(t *testing.T) {
 	}
 }
 
+func TestRepositoryUpdateLongURLForOwnerIncludesExpiredURLs(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	updatedAt := record.UpdatedAt.Add(time.Hour)
+	expiresAt := record.CreatedAt.Add(-time.Hour)
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:        bson.NewObjectID(),
+			OwnerID:   "owner-1",
+			LongURL:   "https://example.com/updated",
+			ShortCode: record.ShortCode,
+			CreatedAt: record.CreatedAt,
+			UpdatedAt: updatedAt,
+			ExpiresAt: &expiresAt,
+		}, nil, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.UpdateLongURLForOwner(context.Background(), urlmodel.UpdateLongURLParams{
+		ShortCode: record.ShortCode,
+		LongURL:   "https://example.com/updated",
+		UpdatedAt: updatedAt,
+	}, "owner-1")
+	if err != nil {
+		t.Fatalf("expected expired owner URL to be updated: %v", err)
+	}
+
+	assertOwnerShortCodeFilter(t, collection.updateFilter, record.ShortCode, "owner-1")
+}
+
 func TestRepositoryUpdateLongURLMapsMissingDocument(t *testing.T) {
 	t.Parallel()
 
@@ -441,6 +497,21 @@ func TestRepositoryDeleteByShortCodeDeletesURL(t *testing.T) {
 	}
 
 	assertActiveShortCodeFilter(t, collection.deleteFilter, "AbC123", now)
+}
+
+func TestRepositoryDeleteByShortCodeForOwnerIncludesExpiredURLs(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		deleteResult: &mongo.DeleteResult{DeletedCount: 1, Acknowledged: true},
+	}
+	repository := newRepository(collection)
+
+	if err := repository.DeleteByShortCodeForOwner(context.Background(), "AbC123", "owner-1"); err != nil {
+		t.Fatalf("expected expired owner URL to be deleted: %v", err)
+	}
+
+	assertOwnerShortCodeFilter(t, collection.deleteFilter, "AbC123", "owner-1")
 }
 
 func TestRepositoryDeleteByShortCodeMapsMissingURL(t *testing.T) {
@@ -633,6 +704,23 @@ func assertActiveShortCodeFilter(t *testing.T, value any, shortCode string, now 
 	comparison, ok := condition[0].Value.(bson.D)
 	if !ok || len(comparison) != 1 || comparison[0].Key != "$gt" || comparison[0].Value != now {
 		t.Fatalf("expected expiration after %s, got %#v", now, condition[0].Value)
+	}
+}
+
+func assertOwnerShortCodeFilter(t *testing.T, value any, shortCode, ownerID string) {
+	t.Helper()
+
+	filter, ok := value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON filter, got %T", value)
+	}
+
+	expected := bson.D{
+		{Key: "short_code", Value: shortCode},
+		{Key: "owner_id", Value: ownerID},
+	}
+	if !reflect.DeepEqual(filter, expected) {
+		t.Fatalf("expected owner short code filter %#v, got %#v", expected, filter)
 	}
 }
 
