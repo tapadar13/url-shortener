@@ -1,6 +1,30 @@
 name: url-shortener
 
 services:
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: url-shortener-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    environment:
+      API_BASE_URL: http://api:8080
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   api:
     build:
       context: ../apps/api
@@ -39,7 +63,7 @@ services:
       ANALYTICS_WORKERS: 2
       ANALYTICS_QUEUE_SIZE: 4096
       ANALYTICS_WRITE_TIMEOUT: 5s
-      AUTH_TOKEN_SECRET: replace-with-a-random-secret
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:?set AUTH_TOKEN_SECRET in .env}
       AUTH_TOKEN_ISSUER: url-shortener
       AUTH_TOKEN_AUDIENCE: url-shortener-api
       AUTH_TOKEN_TTL: 15m
