@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { LinkAnalyticsChart } from "@/components/links/link-analytics-chart"
+import { LinkExpirationStatus } from "@/components/links/link-expiration-status"
 import {
   useLinkAnalytics,
   useLinkStats,
@@ -232,6 +233,11 @@ export function StatsDialog({ link, onOpenChange }: StatsDialogProps) {
                       <CornerDownRight className="size-3" aria-hidden="true" />
                       Updated {formatDate(stats.data.updatedAt)}
                     </span>
+                    {stats.data.expiresAt && (
+                      <LinkExpirationStatus
+                        expiresAt={stats.data.expiresAt}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

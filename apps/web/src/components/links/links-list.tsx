@@ -19,6 +19,7 @@ import {
   EditDestinationDialog,
   StatsDialog,
 } from "@/components/links/link-dialogs"
+import { LinkExpirationStatus } from "@/components/links/link-expiration-status"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -118,6 +119,12 @@ function LinkRow({ link, index }: { link: LinkStats; index: number }) {
             {`· ${formatCount(link.accessCount)} visits`}
           </span>
         </p>
+        {link.expiresAt && (
+          <LinkExpirationStatus
+            expiresAt={link.expiresAt}
+            className="mt-1 font-mono"
+          />
+        )}
       </div>
 
       <div className="hidden shrink-0 text-right md:block">
