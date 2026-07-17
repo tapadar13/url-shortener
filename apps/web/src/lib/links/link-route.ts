@@ -5,11 +5,13 @@ import {
 import { requestAuthenticatedAPI } from "@/lib/auth/authenticated-client"
 import { isSameOriginRequest } from "@/lib/security/request-origin"
 
+import {
+  invalidShortCodeResponse,
+  readShortCode,
+  shortLinkAPIPath,
+  type LinkRouteContext,
+} from "./route-params"
 import type { ShortLink } from "./types"
-
-interface LinkRouteContext {
-  params: Promise<{ shortCode: string }>
-}
 
 interface LinkRouteDependencies {
   get: (shortCode: string, signal: AbortSignal) => Promise<ShortLink>
@@ -23,15 +25,15 @@ interface LinkRouteDependencies {
 
 const defaultDependencies: LinkRouteDependencies = {
   get: (shortCode, signal) =>
-    requestAuthenticatedAPI<ShortLink>(shortLinkPath(shortCode), { signal }),
+    requestAuthenticatedAPI<ShortLink>(shortLinkAPIPath(shortCode), { signal }),
   update: (shortCode, url, signal) =>
-    requestAuthenticatedAPI<ShortLink>(shortLinkPath(shortCode), {
+    requestAuthenticatedAPI<ShortLink>(shortLinkAPIPath(shortCode), {
       method: "PUT",
       body: JSON.stringify({ url }),
       signal,
     }),
   delete: (shortCode, signal) =>
-    requestAuthenticatedAPI<void>(shortLinkPath(shortCode), {
+    requestAuthenticatedAPI<void>(shortLinkAPIPath(shortCode), {
       method: "DELETE",
       signal,
     }),
@@ -45,9 +47,9 @@ export function createLinkRoute(
       request: Request,
       context: LinkRouteContext
     ): Promise<Response> => {
-      const shortCode = await validShortCode(context)
+      const shortCode = await readShortCode(context)
       if (!shortCode) {
-        return invalidShortCode()
+        return invalidShortCodeResponse()
       }
 
       try {
@@ -66,9 +68,9 @@ export function createLinkRoute(
         return originNotAllowed()
       }
 
-      const shortCode = await validShortCode(context)
+      const shortCode = await readShortCode(context)
       if (!shortCode) {
-        return invalidShortCode()
+        return invalidShortCodeResponse()
       }
 
       let body: unknown
@@ -101,9 +103,9 @@ export function createLinkRoute(
         return originNotAllowed()
       }
 
-      const shortCode = await validShortCode(context)
+      const shortCode = await readShortCode(context)
       if (!shortCode) {
-        return invalidShortCode()
+        return invalidShortCodeResponse()
       }
 
       try {
@@ -117,17 +119,6 @@ export function createLinkRoute(
       }
     },
   }
-}
-
-async function validShortCode(
-  context: LinkRouteContext
-): Promise<string | undefined> {
-  const { shortCode } = await context.params
-  return /^[A-Za-z0-9]{4,32}$/.test(shortCode) ? shortCode : undefined
-}
-
-function shortLinkPath(shortCode: string): string {
-  return `/shorten/${encodeURIComponent(shortCode)}`
 }
 
 function isUpdateLinkInput(value: unknown): value is { url: string } {
@@ -147,10 +138,6 @@ function originNotAllowed(): Response {
     "origin_not_allowed",
     "request origin is not allowed"
   )
-}
-
-function invalidShortCode(): Response {
-  return apiErrorResponse(400, "invalid_short_code", "short code is invalid")
 }
 
 function invalidUpdateRequest(): Response {
