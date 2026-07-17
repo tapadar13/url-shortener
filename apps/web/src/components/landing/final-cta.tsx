@@ -1,7 +1,7 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react"
+import Link from "next/link"
 
 import { GithubMark } from "@/components/icons"
-import { AuthDialog } from "@/components/landing/auth-dialog"
 import { Reveal } from "@/components/landing/reveal"
 import { Button } from "@/components/ui/button"
 import { siteConfig } from "@/config/site"
@@ -23,12 +23,12 @@ export function FinalCta() {
               change, and refreshingly easy to understand.
             </p>
             <div className="flex flex-wrap gap-3">
-              <AuthDialog intent="get-started">
-                <Button className="h-12 rounded-2xl px-6 text-[0.95rem]">
+              <Button className="h-12 rounded-2xl px-6 text-[0.95rem]" asChild>
+                <Link href="/register">
                   Start with Relay
                   <ArrowRight data-icon="inline-end" aria-hidden="true" />
-                </Button>
-              </AuthDialog>
+                </Link>
+              </Button>
               <Button variant="outline" className="h-12 rounded-2xl border-foreground/20 bg-transparent px-5 text-foreground hover:bg-foreground/8" asChild>
                 <a href={siteConfig.repoUrl} target="_blank" rel="noreferrer">
                   <GithubMark aria-hidden="true" />GitHub<ArrowUpRight data-icon="inline-end" aria-hidden="true" />

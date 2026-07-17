@@ -1,0 +1,811 @@
+openapi: 3.1.0
+info:
+  title: URL Shortener API
+  version: 0.5.0
+  description: |
+    Create and manage short URLs, retrieve link statistics, and redirect visitors
+    while atomically recording accesses.
+servers:
+  - url: http://localhost:8080
+    description: Local development
+security: []
+paths:
+  /healthz:
+    get:
+      summary: Check API liveness
+      operationId: getHealth
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+  /readyz:
+    get:
+      summary: Check API and MongoDB readiness
+      operationId: getReadiness
+      responses:
+        '200':
+          $ref: '#/components/responses/Ready'
+        '503':
+          $ref: '#/components/responses/NotReady'
+  /metrics:
+    get:
+      summary: Retrieve Prometheus metrics
+      description: Operational request metrics in Prometheus text exposition format. Keep this endpoint behind deployment-level access controls.
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+  /auth/register:
+    post:
+      summary: Register a user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/EmailTaken'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/login:
+    post:
+      summary: Authenticate a user
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AuthSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/refresh:
+    post:
+      summary: Rotate a refresh token
+      operationId: refreshAccessToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Replacement access and refresh tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshTokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/logout:
+    post:
+      summary: Revoke a refresh session
+      operationId: logoutUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '204':
+          description: Refresh session revoked
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+  /auth/me:
+    get:
+      summary: Retrieve the authenticated user
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /shorten:
+    get:
+      summary: List the authenticated user’s short URLs
+      operationId: listMyShortURLs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of short URLs to return.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque cursor returned by the previous page.
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: User short URLs ordered by creation time, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/URLListPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create a short URL
+      operationId: createShortURL
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateURLRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/URLCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '409':
+          $ref: '#/components/responses/ShortCodeTaken'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+  /shorten/{shortCode}:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve a short URL
+      operationId: getShortURL
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/URLResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '413':
+          $ref: '#/components/responses/RequestEntityTooLarge'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+    put:
+      summary: Update a short URL destination
+      operationId: updateShortURL
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateURLRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/URLResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+    delete:
+      summary: Delete a short URL
+      operationId: deleteShortURL
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Short URL deleted
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestID'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+  /shorten/{shortCode}/stats:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve short URL statistics
+      operationId: getShortURLStats
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/URLStatsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+  /shorten/{shortCode}/analytics:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Retrieve daily click analytics
+      description: |
+        Returns a contiguous UTC daily click series for the requested inclusive date range.
+        The range defaults to the latest 30 days and cannot exceed 90 days. Click analytics
+        and cached access counts are recorded asynchronously and may briefly differ.
+      operationId: getShortURLAnalytics
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          $ref: '#/components/responses/URLAnalyticsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+  /{shortCode}:
+    parameters:
+      - $ref: '#/components/parameters/ShortCode'
+    get:
+      summary: Redirect to the original destination
+      description: |
+        Records the access count with an atomic MongoDB update. When redirect caching is enabled,
+        cache-hit access updates are queued asynchronously to keep redirect latency low.
+      operationId: redirectShortURL
+      responses:
+        '301':
+          $ref: '#/components/responses/Redirect'
+        '302':
+          $ref: '#/components/responses/Redirect'
+        '307':
+          $ref: '#/components/responses/Redirect'
+        '308':
+          $ref: '#/components/responses/Redirect'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimitExceeded'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+        '504':
+          $ref: '#/components/responses/RequestTimeout'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ShortCode:
+      name: shortCode
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 4
+        maxLength: 32
+        pattern: '^[A-Za-z0-9]+$'
+      description: Base62 short code. Reserved route names are rejected.
+    AnalyticsFrom:
+      name: from
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: First UTC date to include. Defaults to 29 days before `to`, producing a 30-day range.
+    AnalyticsTo:
+      name: to
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date
+      description: Last UTC date to include. Defaults to the current UTC date and cannot be in the future.
+  headers:
+    RequestID:
+      description: Server-generated identifier used to correlate a request with server logs.
+      schema:
+        type: string
+        pattern: '^[a-f0-9]{32}$'
+    RateLimitLimit:
+      description: Maximum requests allowed in the current fixed window.
+      schema:
+        type: integer
+        minimum: 1
+    RateLimitRemaining:
+      description: Requests remaining in the current fixed window.
+      schema:
+        type: integer
+        minimum: 0
+    RateLimitReset:
+      description: Unix timestamp when the current fixed window resets.
+      schema:
+        type: integer
+        format: int64
+    RetryAfter:
+      description: Seconds until the client may retry after exceeding the limit.
+      schema:
+        type: integer
+        minimum: 1
+  responses:
+    Unauthorized:
+      description: Authentication is required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    AuthSuccess:
+      description: Authentication succeeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthResponse'
+    EmailTaken:
+      description: Email is already registered
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InvalidCredentials:
+      description: Email or password is invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RequestEntityTooLarge:
+      description: Request body exceeds the configured maximum size
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Health:
+      description: API process is running.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Probe'
+          example:
+            status: ok
+    Ready:
+      description: API and MongoDB are ready.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Probe'
+          example:
+            status: ready
+    URLCreated:
+      description: Short URL created.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URL'
+    URLResponse:
+      description: Short URL details.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URL'
+    URLStatsResponse:
+      description: Short URL details and access statistics.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URLStats'
+    URLAnalyticsResponse:
+      description: Daily click analytics for the requested inclusive UTC date range.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/URLAnalytics'
+    Redirect:
+      description: Redirect to the original URL. The returned status is selected by server configuration.
+      headers:
+        Location:
+          description: Original destination URL.
+          required: true
+          schema:
+            type: string
+            format: uri
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+    BadRequest:
+      description: Invalid request JSON, URL, short code, or expiration.
+      $ref: '#/components/responses/ErrorResponse'
+    NotFound:
+      description: Requested short URL or route was not found.
+      $ref: '#/components/responses/ErrorResponse'
+    NotReady:
+      description: A required service dependency is unavailable.
+      $ref: '#/components/responses/ErrorResponse'
+    ServiceUnavailable:
+      description: A request dependency is unavailable or a unique generated code could not be allocated.
+      $ref: '#/components/responses/ErrorResponse'
+    ShortCodeTaken:
+      description: The requested custom short code already exists.
+      $ref: '#/components/responses/ErrorResponse'
+    RequestTimeout:
+      description: A downstream operation exceeded the configured request deadline.
+      $ref: '#/components/responses/ErrorResponse'
+    RateLimitExceeded:
+      description: The client exceeded its request quota for the current fixed window.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Unexpected server failure.
+      $ref: '#/components/responses/ErrorResponse'
+    ErrorResponse:
+      description: API error response.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestID'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/RateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/RateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/RateLimitReset'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    AuthRequest:
+      type: object
+      required: [email, password]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 12
+          maxLength: 72
+    AuthResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresAt, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresAt:
+          type: string
+          format: date-time
+        user:
+          $ref: '#/components/schemas/AuthUser'
+    AuthUser:
+      type: object
+      required: [id, email]
+      properties:
+        id: {type: string}
+        email: {type: string, format: email}
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      additionalProperties: false
+      properties:
+        refreshToken:
+          type: string
+    RefreshTokenResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresAt]
+      properties:
+        accessToken: {type: string}
+        refreshToken: {type: string}
+        tokenType: {type: string, enum: [Bearer]}
+        expiresAt: {type: string, format: date-time}
+    CreateURLRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: HTTP or HTTPS destination URL.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional future RFC3339 timestamp after which the link is unavailable.
+        shortCode:
+          type: string
+          minLength: 4
+          maxLength: 32
+          pattern: '^[A-Za-z0-9]+$'
+          description: Optional custom Base62 short code. Reserved route names are rejected.
+    UpdateURLRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: HTTP or HTTPS destination URL.
+    URL:
+      type: object
+      required:
+        - id
+        - url
+        - shortCode
+        - shortUrl
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          description: MongoDB ObjectID in hexadecimal form.
+        url:
+          type: string
+          format: uri
+        shortCode:
+          type: string
+        shortUrl:
+          type: string
+          format: uri
+          description: Canonical public redirect URL constructed from the configured base URL.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional timestamp after which the link is unavailable.
+    URLListPage:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/URL'
+        nextCursor:
+          type: string
+          description: Opaque cursor for the next page. Omitted when no further results exist.
+    URLStats:
+      allOf:
+        - $ref: '#/components/schemas/URL'
+        - type: object
+          required:
+            - accessCount
+          properties:
+            accessCount:
+              type: integer
+              format: int64
+              minimum: 0
+            lastAccessedAt:
+              type: string
+              format: date-time
+    URLAnalytics:
+      type: object
+      required:
+        - shortCode
+        - from
+        - to
+        - totalClicks
+        - daily
+      properties:
+        shortCode:
+          type: string
+        from:
+          type: string
+          format: date
+          description: First included UTC date.
+        to:
+          type: string
+          format: date
+          description: Last included UTC date.
+        totalClicks:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Sum of daily clicks within the requested range.
+        daily:
+          type: array
+          minItems: 1
+          maxItems: 90
+          items:
+            $ref: '#/components/schemas/DailyClicks'
+    DailyClicks:
+      type: object
+      required:
+        - date
+        - clicks
+      properties:
+        date:
+          type: string
+          format: date
+          description: UTC calendar date.
+        clicks:
+          type: integer
+          format: int64
+          minimum: 0
+    Probe:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string

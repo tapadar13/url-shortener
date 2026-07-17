@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -25,25 +26,43 @@ const (
 )
 
 type Config struct {
-	Environment     string
-	HTTP            HTTPConfig
-	MongoDB         MongoDBConfig
-	ShortCode       ShortCodeConfig
-	Redirect        RedirectConfig
-	Log             LogConfig
-	RequestTimeout  time.Duration
-	ShutdownTimeout time.Duration
+	Environment         string
+	HTTP                HTTPConfig
+	MongoDB             MongoDBConfig
+	Redis               RedisConfig
+	ShortCode           ShortCodeConfig
+	Redirect            RedirectConfig
+	RedirectCache       RedirectCacheConfig
+	Analytics           AnalyticsConfig
+	RateLimit           RateLimitConfig
+	Auth                AuthConfig
+	Log                 LogConfig
+	RequestTimeout      time.Duration
+	ShutdownTimeout     time.Duration
+	MaxRequestBodyBytes int64
 }
 
 type HTTPConfig struct {
-	Addr    string
-	BaseURL string
+	Addr              string
+	BaseURL           string
+	AllowedOrigins    []string
+	TrustedProxyCIDRs []netip.Prefix
 }
 
 type MongoDBConfig struct {
-	URI            string
-	Database       string
-	URLsCollection string
+	URI                  string
+	Database             string
+	URLsCollection       string
+	UsersCollection      string
+	SessionsCollection   string
+	RateLimitsCollection string
+	AnalyticsCollection  string
+}
+
+type RedisConfig struct {
+	URL            string
+	KeyPrefix      string
+	ConnectTimeout time.Duration
 }
 
 type ShortCodeConfig struct {
@@ -53,6 +72,33 @@ type ShortCodeConfig struct {
 
 type RedirectConfig struct {
 	StatusCode int
+}
+
+type RedirectCacheConfig struct {
+	Enabled         bool
+	TTL             time.Duration
+	AccessWorkers   int
+	AccessQueueSize int
+	AccessTimeout   time.Duration
+}
+
+type AnalyticsConfig struct {
+	Workers      int
+	QueueSize    int
+	WriteTimeout time.Duration
+}
+
+type RateLimitConfig struct {
+	Requests int
+	Window   time.Duration
+}
+
+type AuthConfig struct {
+	TokenSecret     string
+	TokenIssuer     string
+	TokenAudience   string
+	TokenTTL        time.Duration
+	RefreshTokenTTL time.Duration
 }
 
 type LogConfig struct {
@@ -97,16 +143,102 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		return Config{}, err
 	}
 
+	maxRequestBodyBytes, err := intValue(lookup, "MAX_REQUEST_BODY_BYTES", 1<<20)
+	if err != nil {
+		return Config{}, err
+	}
+
+	rateLimitRequests, err := intValue(lookup, "RATE_LIMIT_REQUESTS", 60)
+	if err != nil {
+		return Config{}, err
+	}
+
+	rateLimitWindow, err := durationValue(lookup, "RATE_LIMIT_WINDOW", time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	trustedProxyCIDRs, err := prefixListValue(lookup, "TRUSTED_PROXY_CIDRS")
+	if err != nil {
+		return Config{}, err
+	}
+
+	redisConnectTimeout, err := durationValue(lookup, "REDIS_CONNECT_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheEnabled, err := boolValue(lookup, "REDIRECT_CACHE_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheTTL, err := durationValue(lookup, "REDIRECT_CACHE_TTL", 10*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheAccessWorkers, err := intValue(lookup, "REDIRECT_CACHE_ACCESS_WORKERS", 2)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheAccessQueueSize, err := intValue(lookup, "REDIRECT_CACHE_ACCESS_QUEUE_SIZE", 1024)
+	if err != nil {
+		return Config{}, err
+	}
+
+	redirectCacheAccessTimeout, err := durationValue(lookup, "REDIRECT_CACHE_ACCESS_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	analyticsWorkers, err := intValue(lookup, "ANALYTICS_WORKERS", 2)
+	if err != nil {
+		return Config{}, err
+	}
+
+	analyticsQueueSize, err := intValue(lookup, "ANALYTICS_QUEUE_SIZE", 4096)
+	if err != nil {
+		return Config{}, err
+	}
+
+	analyticsWriteTimeout, err := durationValue(lookup, "ANALYTICS_WRITE_TIMEOUT", 5*time.Second)
+	if err != nil {
+		return Config{}, err
+	}
+
+	authTokenTTL, err := durationValue(lookup, "AUTH_TOKEN_TTL", 15*time.Minute)
+	if err != nil {
+		return Config{}, err
+	}
+
+	authRefreshTokenTTL, err := durationValue(lookup, "AUTH_REFRESH_TOKEN_TTL", 30*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+
 	cfg := Config{
 		Environment: value(lookup, "APP_ENV", EnvironmentDevelopment),
 		HTTP: HTTPConfig{
-			Addr:    value(lookup, "HTTP_ADDR", ":8080"),
-			BaseURL: trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
+			Addr:              value(lookup, "HTTP_ADDR", ":8080"),
+			BaseURL:           trimTrailingSlash(value(lookup, "BASE_URL", "http://localhost:8080")),
+			AllowedOrigins:    listValue(lookup, "CORS_ALLOWED_ORIGINS"),
+			TrustedProxyCIDRs: trustedProxyCIDRs,
 		},
 		MongoDB: MongoDBConfig{
-			URI:            value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
-			Database:       value(lookup, "MONGODB_DATABASE", "url_shortener"),
-			URLsCollection: value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
+			URI:                  value(lookup, "MONGODB_URI", "mongodb://localhost:27017"),
+			Database:             value(lookup, "MONGODB_DATABASE", "url_shortener"),
+			URLsCollection:       value(lookup, "MONGODB_URLS_COLLECTION", "urls"),
+			UsersCollection:      value(lookup, "MONGODB_USERS_COLLECTION", "users"),
+			SessionsCollection:   value(lookup, "MONGODB_SESSIONS_COLLECTION", "sessions"),
+			RateLimitsCollection: value(lookup, "MONGODB_RATE_LIMITS_COLLECTION", "rate_limits"),
+			AnalyticsCollection:  value(lookup, "MONGODB_ANALYTICS_COLLECTION", "click_analytics"),
+		},
+		Redis: RedisConfig{
+			URL:            value(lookup, "REDIS_URL", "redis://localhost:6379/0"),
+			KeyPrefix:      value(lookup, "REDIS_KEY_PREFIX", "url-shortener"),
+			ConnectTimeout: redisConnectTimeout,
 		},
 		ShortCode: ShortCodeConfig{
 			Length:     shortCodeLength,
@@ -115,12 +247,36 @@ func load(lookup func(string) (string, bool)) (Config, error) {
 		Redirect: RedirectConfig{
 			StatusCode: redirectStatus,
 		},
+		RedirectCache: RedirectCacheConfig{
+			Enabled:         redirectCacheEnabled,
+			TTL:             redirectCacheTTL,
+			AccessWorkers:   redirectCacheAccessWorkers,
+			AccessQueueSize: redirectCacheAccessQueueSize,
+			AccessTimeout:   redirectCacheAccessTimeout,
+		},
+		Analytics: AnalyticsConfig{
+			Workers:      analyticsWorkers,
+			QueueSize:    analyticsQueueSize,
+			WriteTimeout: analyticsWriteTimeout,
+		},
+		RateLimit: RateLimitConfig{
+			Requests: rateLimitRequests,
+			Window:   rateLimitWindow,
+		},
+		Auth: AuthConfig{
+			TokenSecret:     value(lookup, "AUTH_TOKEN_SECRET", "development-only-change-me-0123456789"),
+			TokenIssuer:     value(lookup, "AUTH_TOKEN_ISSUER", "url-shortener"),
+			TokenAudience:   value(lookup, "AUTH_TOKEN_AUDIENCE", "url-shortener-api"),
+			TokenTTL:        authTokenTTL,
+			RefreshTokenTTL: authRefreshTokenTTL,
+		},
 		Log: LogConfig{
 			Level:  value(lookup, "LOG_LEVEL", LogLevelInfo),
 			Format: value(lookup, "LOG_FORMAT", LogFormatText),
 		},
-		RequestTimeout:  requestTimeout,
-		ShutdownTimeout: shutdownTimeout,
+		RequestTimeout:      requestTimeout,
+		ShutdownTimeout:     shutdownTimeout,
+		MaxRequestBodyBytes: int64(maxRequestBodyBytes),
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -141,8 +297,14 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("HTTP_ADDR is required"))
 	}
 
-	if !isHTTPURL(cfg.HTTP.BaseURL) {
-		errs = append(errs, errors.New("BASE_URL must be a valid http or https URL with a host"))
+	if !isHTTPBaseURL(cfg.HTTP.BaseURL) {
+		errs = append(errs, errors.New("BASE_URL must be a valid http or https URL without credentials, a query, or a fragment"))
+	}
+
+	for _, origin := range cfg.HTTP.AllowedOrigins {
+		if !isHTTPOrigin(origin) {
+			errs = append(errs, fmt.Errorf("CORS_ALLOWED_ORIGINS contains invalid origin %q", origin))
+		}
 	}
 
 	if strings.TrimSpace(cfg.MongoDB.URI) == "" {
@@ -157,6 +319,33 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("MONGODB_URLS_COLLECTION is required"))
 	}
 
+	if strings.TrimSpace(cfg.MongoDB.UsersCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_USERS_COLLECTION is required"))
+	}
+	if strings.TrimSpace(cfg.MongoDB.SessionsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_SESSIONS_COLLECTION is required"))
+	}
+
+	if strings.TrimSpace(cfg.MongoDB.RateLimitsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_RATE_LIMITS_COLLECTION is required"))
+	}
+
+	if strings.TrimSpace(cfg.MongoDB.AnalyticsCollection) == "" {
+		errs = append(errs, errors.New("MONGODB_ANALYTICS_COLLECTION is required"))
+	}
+
+	if !isRedisURL(cfg.Redis.URL) {
+		errs = append(errs, errors.New("REDIS_URL must be a valid redis or rediss URL with a host"))
+	}
+
+	if strings.TrimSpace(cfg.Redis.KeyPrefix) == "" {
+		errs = append(errs, errors.New("REDIS_KEY_PREFIX is required"))
+	}
+
+	if cfg.Redis.ConnectTimeout <= 0 {
+		errs = append(errs, errors.New("REDIS_CONNECT_TIMEOUT must be greater than zero"))
+	}
+
 	if cfg.ShortCode.Length < 4 || cfg.ShortCode.Length > 32 {
 		errs = append(errs, errors.New("SHORT_CODE_LENGTH must be between 4 and 32"))
 	}
@@ -167,6 +356,58 @@ func (cfg Config) Validate() error {
 
 	if !oneOf(strconv.Itoa(cfg.Redirect.StatusCode), "301", "302", "307", "308") {
 		errs = append(errs, errors.New("REDIRECT_STATUS must be one of 301, 302, 307, 308"))
+	}
+
+	if cfg.RedirectCache.TTL <= 0 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_TTL must be greater than zero"))
+	}
+
+	if cfg.RedirectCache.AccessWorkers < 1 || cfg.RedirectCache.AccessWorkers > 64 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_WORKERS must be between 1 and 64"))
+	}
+
+	if cfg.RedirectCache.AccessQueueSize < 1 || cfg.RedirectCache.AccessQueueSize > 100000 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_QUEUE_SIZE must be between 1 and 100000"))
+	}
+
+	if cfg.RedirectCache.AccessTimeout <= 0 {
+		errs = append(errs, errors.New("REDIRECT_CACHE_ACCESS_TIMEOUT must be greater than zero"))
+	}
+
+	if cfg.Analytics.Workers < 1 || cfg.Analytics.Workers > 64 {
+		errs = append(errs, errors.New("ANALYTICS_WORKERS must be between 1 and 64"))
+	}
+
+	if cfg.Analytics.QueueSize < 1 || cfg.Analytics.QueueSize > 100000 {
+		errs = append(errs, errors.New("ANALYTICS_QUEUE_SIZE must be between 1 and 100000"))
+	}
+
+	if cfg.Analytics.WriteTimeout <= 0 {
+		errs = append(errs, errors.New("ANALYTICS_WRITE_TIMEOUT must be greater than zero"))
+	}
+
+	if cfg.RateLimit.Requests < 0 {
+		errs = append(errs, errors.New("RATE_LIMIT_REQUESTS must be zero or greater"))
+	}
+
+	if cfg.RateLimit.Window <= 0 {
+		errs = append(errs, errors.New("RATE_LIMIT_WINDOW must be greater than zero"))
+	}
+
+	if strings.TrimSpace(cfg.Auth.TokenSecret) == "" || len(cfg.Auth.TokenSecret) < 32 || (cfg.Environment == EnvironmentProduction && cfg.Auth.TokenSecret == "development-only-change-me-0123456789") {
+		errs = append(errs, errors.New("AUTH_TOKEN_SECRET must be at least 32 characters and non-default in production"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenIssuer) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_ISSUER is required"))
+	}
+	if strings.TrimSpace(cfg.Auth.TokenAudience) == "" {
+		errs = append(errs, errors.New("AUTH_TOKEN_AUDIENCE is required"))
+	}
+	if cfg.Auth.TokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_TOKEN_TTL must be greater than zero"))
+	}
+	if cfg.Auth.RefreshTokenTTL <= 0 {
+		errs = append(errs, errors.New("AUTH_REFRESH_TOKEN_TTL must be greater than zero"))
 	}
 
 	if !oneOf(cfg.Log.Level, LogLevelDebug, LogLevelInfo, LogLevelWarn, LogLevelError) {
@@ -185,6 +426,10 @@ func (cfg Config) Validate() error {
 		errs = append(errs, errors.New("SHUTDOWN_TIMEOUT must be greater than zero"))
 	}
 
+	if cfg.MaxRequestBodyBytes < 1 || cfg.MaxRequestBodyBytes > 10<<20 {
+		errs = append(errs, errors.New("MAX_REQUEST_BODY_BYTES must be between 1 and 10485760"))
+	}
+
 	return errors.Join(errs...)
 }
 
@@ -195,6 +440,38 @@ func value(lookup func(string) (string, bool), key string, fallback string) stri
 	}
 
 	return strings.TrimSpace(raw)
+}
+
+func listValue(lookup func(string) (string, bool), key string) []string {
+	raw, ok := lookup(key)
+	if !ok {
+		return nil
+	}
+
+	var values []string
+	for _, item := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+
+	return values
+}
+
+func prefixListValue(lookup func(string) (string, bool), key string) ([]netip.Prefix, error) {
+	values := listValue(lookup, key)
+	prefixes := make([]netip.Prefix, 0, len(values))
+
+	for _, value := range values {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, fmt.Errorf("%s contains invalid CIDR %q", key, value)
+		}
+
+		prefixes = append(prefixes, prefix.Masked())
+	}
+
+	return prefixes, nil
 }
 
 func intValue(lookup func(string) (string, bool), key string, fallback int) (int, error) {
@@ -211,6 +488,20 @@ func intValue(lookup func(string) (string, bool), key string, fallback int) (int
 	parsed, err := strconv.Atoi(trimmed)
 	if err != nil {
 		return 0, fmt.Errorf("%s must be an integer", key)
+	}
+
+	return parsed, nil
+}
+
+func boolValue(lookup func(string) (string, bool), key string, fallback bool) (bool, error) {
+	raw, ok := lookup(key)
+	if !ok {
+		return fallback, nil
+	}
+
+	parsed, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", key)
 	}
 
 	return parsed, nil
@@ -243,13 +534,46 @@ func trimTrailingSlash(value string) string {
 	return strings.TrimRight(value, "/")
 }
 
-func isHTTPURL(value string) bool {
+func isHTTPBaseURL(value string) bool {
 	parsed, err := url.Parse(value)
 	if err != nil {
 		return false
 	}
 
-	return (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
+	return (parsed.Scheme == "http" || parsed.Scheme == "https") &&
+		parsed.Host != "" &&
+		parsed.User == nil &&
+		parsed.RawQuery == "" &&
+		parsed.Fragment == ""
+}
+
+func isHTTPOrigin(value string) bool {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return false
+	}
+
+	return parsed.Host != "" &&
+		parsed.User == nil &&
+		(parsed.Path == "" || parsed.Path == "/") &&
+		parsed.RawQuery == "" &&
+		parsed.Fragment == ""
+}
+
+func isRedisURL(value string) bool {
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return false
+	}
+
+	return (parsed.Scheme == "redis" || parsed.Scheme == "rediss") &&
+		parsed.Host != "" &&
+		parsed.Fragment == ""
 }
 
 func oneOf(value string, allowed ...string) bool {

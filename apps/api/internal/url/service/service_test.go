@@ -86,6 +86,131 @@ func TestServiceCreateCreatesURL(t *testing.T) {
 	}
 }
 
+func TestServiceCreateCreatesExpiringURL(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 10, 8, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(24 * time.Hour).In(time.FixedZone("IST", 5*60*60+30*60))
+	service := newTestService(t, &fakeRepository{}, &fakeGenerator{
+		codes: []string{"AbC1234"},
+	}, Options{
+		Now: func() time.Time { return now },
+	})
+
+	created, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ExpiresAt: &expiresAt,
+	})
+	if err != nil {
+		t.Fatalf("expected URL to be created: %v", err)
+	}
+
+	if created.ExpiresAt == nil || !created.ExpiresAt.Equal(now.Add(24*time.Hour)) || created.ExpiresAt.Location() != time.UTC {
+		t.Fatalf("expected UTC expiration %s, got %v", now.Add(24*time.Hour), created.ExpiresAt)
+	}
+}
+
+func TestServiceCreateUsesCustomShortCode(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := " Custom123 "
+	generator := &fakeGenerator{}
+	service := newTestService(t, &fakeRepository{}, generator, Options{
+		MaxRetries: -1,
+		Now:        fixedTime,
+	})
+
+	created, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if err != nil {
+		t.Fatalf("expected URL to be created: %v", err)
+	}
+
+	if created.ShortCode != "Custom123" {
+		t.Fatalf("expected custom short code, got %q", created.ShortCode)
+	}
+
+	if generator.index != 0 {
+		t.Fatalf("expected generator not to be called, got %d calls", generator.index)
+	}
+}
+
+func TestServiceCreateReturnsCustomShortCodeCollision(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := "Custom123"
+	repository := &fakeRepository{errors: []error{urlmodel.ErrDuplicateShortCode}}
+	generator := &fakeGenerator{}
+	service := newTestService(t, repository, generator, Options{
+		Now: fixedTime,
+	})
+
+	_, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if !errors.Is(err, urlmodel.ErrDuplicateShortCode) {
+		t.Fatalf("expected duplicate short code error, got %v", err)
+	}
+
+	if repository.createCount != 1 {
+		t.Fatalf("expected one create call, got %d", repository.createCount)
+	}
+
+	if generator.index != 0 {
+		t.Fatalf("expected generator not to be called, got %d calls", generator.index)
+	}
+}
+
+func TestServiceCreateValidatesCustomShortCode(t *testing.T) {
+	t.Parallel()
+
+	customShortCode := "invalid-code"
+	repository := &fakeRepository{}
+	service := newTestService(t, repository, &fakeGenerator{}, Options{
+		Now: fixedTime,
+	})
+
+	_, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com/articles/123",
+		ShortCode: &customShortCode,
+	})
+	if !errors.Is(err, shortcode.ErrInvalidChars) {
+		t.Fatalf("expected short code validation error, got %v", err)
+	}
+
+	if repository.createCount != 0 {
+		t.Fatalf("expected no create calls, got %d", repository.createCount)
+	}
+}
+
+func TestServiceCreateRejectsNonFutureExpiration(t *testing.T) {
+	t.Parallel()
+
+	now := fixedTime()
+	expiresAt := now
+	repository := &fakeRepository{}
+	service := newTestService(t, repository, &fakeGenerator{
+		codes: []string{"AbC1234"},
+	}, Options{
+		Now: func() time.Time { return now },
+	})
+
+	_, err := service.Create(context.Background(), CreateParams{
+		LongURL:   "https://example.com",
+		ExpiresAt: &expiresAt,
+	})
+	if !errors.Is(err, urlmodel.ErrExpirationNotFuture) {
+		t.Fatalf("expected expiration error, got %v", err)
+	}
+
+	if repository.createCount != 0 {
+		t.Fatalf("expected no create calls, got %d", repository.createCount)
+	}
+}
+
 func TestServiceCreateRetriesDuplicateShortCodes(t *testing.T) {
 	t.Parallel()
 

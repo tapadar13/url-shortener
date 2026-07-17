@@ -9,26 +9,32 @@ import (
 )
 
 var (
-	ErrLongURLRequired   = errors.New("long URL is required")
-	ErrShortCodeRequired = errors.New("short code is required")
-	ErrTimestampRequired = errors.New("timestamp is required")
-	ErrNegativeAccesses  = errors.New("access count cannot be negative")
+	ErrLongURLRequired     = errors.New("long URL is required")
+	ErrShortCodeRequired   = errors.New("short code is required")
+	ErrTimestampRequired   = errors.New("timestamp is required")
+	ErrNegativeAccesses    = errors.New("access count cannot be negative")
+	ErrExpirationInvalid   = errors.New("expiration timestamp is invalid")
+	ErrExpirationNotFuture = errors.New("expiration must be in the future")
 )
 
 type URL struct {
 	ID             string
+	OwnerID        string
 	LongURL        string
 	ShortCode      string
 	AccessCount    int64
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	LastAccessedAt *time.Time
+	ExpiresAt      *time.Time
 }
 
 type NewParams struct {
 	LongURL   string
 	ShortCode string
+	OwnerID   string
 	Now       time.Time
+	ExpiresAt *time.Time
 }
 
 func New(params NewParams) (URL, error) {
@@ -43,13 +49,19 @@ func New(params NewParams) (URL, error) {
 	}
 
 	now := params.Now.UTC()
+	expiresAt, err := NormalizeExpiresAt(params.ExpiresAt, now)
+	if err != nil {
+		return URL{}, err
+	}
 
 	record := URL{
+		OwnerID:     strings.TrimSpace(params.OwnerID),
 		LongURL:     longURL,
 		ShortCode:   shortCode,
 		AccessCount: 0,
 		CreatedAt:   now,
 		UpdatedAt:   now,
+		ExpiresAt:   expiresAt,
 	}
 
 	if err := record.Validate(); err != nil {
@@ -80,6 +92,10 @@ func (u URL) Validate() error {
 
 	if u.AccessCount < 0 {
 		errs = append(errs, ErrNegativeAccesses)
+	}
+
+	if u.ExpiresAt != nil && u.ExpiresAt.IsZero() {
+		errs = append(errs, ErrExpirationInvalid)
 	}
 
 	return errors.Join(errs...)

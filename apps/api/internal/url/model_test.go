@@ -48,6 +48,48 @@ func TestNewCreatesURLRecord(t *testing.T) {
 	}
 }
 
+func TestNewNormalizesExpiration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(24 * time.Hour).In(time.FixedZone("IST", 5*60*60+30*60))
+
+	record, err := New(NewParams{
+		LongURL:   "https://example.com",
+		ShortCode: "abc123",
+		Now:       now,
+		ExpiresAt: &expiresAt,
+	})
+	if err != nil {
+		t.Fatalf("expected record to be valid: %v", err)
+	}
+
+	if record.ExpiresAt == nil {
+		t.Fatal("expected expiration to be set")
+	}
+
+	if !record.ExpiresAt.Equal(now.Add(24*time.Hour)) || record.ExpiresAt.Location() != time.UTC {
+		t.Fatalf("expected UTC expiration %s, got %s", now.Add(24*time.Hour), *record.ExpiresAt)
+	}
+}
+
+func TestNewRejectsNonFutureExpiration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
+	for _, expiresAt := range []time.Time{now, now.Add(-time.Nanosecond)} {
+		_, err := New(NewParams{
+			LongURL:   "https://example.com",
+			ShortCode: "abc123",
+			Now:       now,
+			ExpiresAt: &expiresAt,
+		})
+		if !errors.Is(err, ErrExpirationNotFuture) {
+			t.Fatalf("expected expiration error, got %v", err)
+		}
+	}
+}
+
 func TestNewRejectsInvalidRecord(t *testing.T) {
 	t.Parallel()
 
@@ -82,6 +124,25 @@ func TestValidateRejectsNegativeAccessCount(t *testing.T) {
 	err := record.Validate()
 	if !errors.Is(err, ErrNegativeAccesses) {
 		t.Fatalf("expected negative access error, got %v", err)
+	}
+}
+
+func TestValidateRejectsZeroExpiration(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 9, 7, 0, 0, 0, time.UTC)
+	zero := time.Time{}
+	record := URL{
+		LongURL:   "https://example.com",
+		ShortCode: "abc123",
+		CreatedAt: now,
+		UpdatedAt: now,
+		ExpiresAt: &zero,
+	}
+
+	err := record.Validate()
+	if !errors.Is(err, ErrExpirationInvalid) {
+		t.Fatalf("expected invalid expiration error, got %v", err)
 	}
 }
 

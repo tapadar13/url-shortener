@@ -4,6 +4,7 @@ import (
 	"errors"
 	neturl "net/url"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -51,4 +52,17 @@ func NormalizeLongURL(value string) (string, error) {
 func ValidateLongURL(value string) error {
 	_, err := NormalizeLongURL(value)
 	return err
+}
+
+func NormalizeExpiresAt(value *time.Time, now time.Time) (*time.Time, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	expiresAt := value.UTC()
+	if !expiresAt.After(now.UTC()) {
+		return nil, ErrExpirationNotFuture
+	}
+
+	return &expiresAt, nil
 }

@@ -13,9 +13,13 @@ import (
 )
 
 type Client struct {
-	client         *mongo.Client
-	database       *mongo.Database
-	urlsCollection *mongo.Collection
+	client               *mongo.Client
+	database             *mongo.Database
+	urlsCollection       *mongo.Collection
+	usersCollection      *mongo.Collection
+	sessionsCollection   *mongo.Collection
+	rateLimitsCollection *mongo.Collection
+	analyticsCollection  *mongo.Collection
 }
 
 func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duration) (*Client, error) {
@@ -41,9 +45,13 @@ func Connect(ctx context.Context, cfg config.MongoDBConfig, timeout time.Duratio
 	database := driverClient.Database(cfg.Database)
 
 	return &Client{
-		client:         driverClient,
-		database:       database,
-		urlsCollection: database.Collection(cfg.URLsCollection),
+		client:               driverClient,
+		database:             database,
+		urlsCollection:       database.Collection(cfg.URLsCollection),
+		usersCollection:      database.Collection(cfg.UsersCollection),
+		sessionsCollection:   database.Collection(cfg.SessionsCollection),
+		rateLimitsCollection: database.Collection(cfg.RateLimitsCollection),
+		analyticsCollection:  database.Collection(cfg.AnalyticsCollection),
 	}, nil
 }
 
@@ -54,6 +62,22 @@ func (c *Client) Disconnect(ctx context.Context) error {
 
 	if err := c.client.Disconnect(ctx); err != nil {
 		return fmt.Errorf("disconnect MongoDB: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) Ping(ctx context.Context) error {
+	if c == nil || c.client == nil {
+		return errors.New("MongoDB client is required")
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if err := c.client.Ping(ctx, readpref.Primary()); err != nil {
+		return fmt.Errorf("ping MongoDB: %w", err)
 	}
 
 	return nil
@@ -73,4 +97,34 @@ func (c *Client) URLsCollection() *mongo.Collection {
 	}
 
 	return c.urlsCollection
+}
+
+func (c *Client) UsersCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+	return c.usersCollection
+}
+
+func (c *Client) SessionsCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+	return c.sessionsCollection
+}
+
+func (c *Client) RateLimitsCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+
+	return c.rateLimitsCollection
+}
+
+func (c *Client) AnalyticsCollection() *mongo.Collection {
+	if c == nil {
+		return nil
+	}
+
+	return c.analyticsCollection
 }

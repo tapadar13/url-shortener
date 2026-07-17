@@ -3,6 +3,7 @@ package mongodb
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +138,579 @@ func TestRepositoryCreateRejectsUnexpectedInsertedID(t *testing.T) {
 	}
 }
 
+func TestRepositoryListPageByOwnerUsesStableSeekPagination(t *testing.T) {
+	t.Parallel()
+
+	cursorID := bson.NewObjectID()
+	cursorCreatedAt := time.Date(2026, 7, 15, 12, 30, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	firstID := bson.NewObjectID()
+	secondID := bson.NewObjectID()
+	createdAt := cursorCreatedAt.Add(-time.Hour).UTC()
+	cursor, err := mongo.NewCursorFromDocuments([]any{
+		urlDocument{
+			ID:        firstID,
+			OwnerID:   "owner-1",
+			LongURL:   "https://example.com/first",
+			ShortCode: "First1",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+		urlDocument{
+			ID:        secondID,
+			OwnerID:   "owner-1",
+			LongURL:   "https://example.com/second",
+			ShortCode: "Second",
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		},
+	}, nil, nil)
+	if err != nil {
+		t.Fatalf("create test cursor: %v", err)
+	}
+
+	collection := &fakeInsertOneCollection{listCursor: cursor}
+	repository := newRepository(collection)
+	listed, err := repository.ListPageByOwner(context.Background(), urlmodel.ListQuery{
+		OwnerID: "owner-1",
+		Limit:   26,
+		After: &urlmodel.ListCursor{
+			CreatedAt: cursorCreatedAt,
+			ID:        cursorID.Hex(),
+		},
+	})
+	if err != nil {
+		t.Fatalf("expected URL page to be listed: %v", err)
+	}
+
+	if !collection.listCalled {
+		t.Fatal("expected collection to be queried")
+	}
+	expectedFilter := bson.D{
+		{Key: "owner_id", Value: "owner-1"},
+		{Key: "$or", Value: bson.A{
+			bson.D{{Key: "created_at", Value: bson.D{{Key: "$lt", Value: cursorCreatedAt.UTC()}}}},
+			bson.D{
+				{Key: "created_at", Value: cursorCreatedAt.UTC()},
+				{Key: "_id", Value: bson.D{{Key: "$lt", Value: cursorID}}},
+			},
+		}},
+	}
+	if !reflect.DeepEqual(collection.listFilter, expectedFilter) {
+		t.Fatalf("expected seek filter %#v, got %#v", expectedFilter, collection.listFilter)
+	}
+
+	findOptions := listFindOptions(t, collection.listOptions)
+	expectedSort := bson.D{{Key: "created_at", Value: -1}, {Key: "_id", Value: -1}}
+	if !reflect.DeepEqual(findOptions.Sort, expectedSort) {
+		t.Fatalf("expected stable sort %#v, got %#v", expectedSort, findOptions.Sort)
+	}
+	if findOptions.Limit == nil || *findOptions.Limit != 26 {
+		t.Fatalf("expected query limit 26, got %#v", findOptions.Limit)
+	}
+
+	if len(listed) != 2 || listed[0].ID != firstID.Hex() || listed[1].ID != secondID.Hex() {
+		t.Fatalf("expected listed URL documents to be mapped in order, got %#v", listed)
+	}
+}
+
+func TestRepositoryListPageByOwnerRejectsMalformedCursorIDBeforeQuerying(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+	_, err := repository.ListPageByOwner(context.Background(), urlmodel.ListQuery{
+		OwnerID: "owner-1",
+		Limit:   26,
+		After: &urlmodel.ListCursor{
+			CreatedAt: time.Now(),
+			ID:        "not-an-object-id",
+		},
+	})
+	if !errors.Is(err, urlmodel.ErrCursorInvalid) {
+		t.Fatalf("expected invalid cursor error, got %v", err)
+	}
+	if collection.listCalled {
+		t.Fatal("expected collection not to be queried")
+	}
+}
+
+func TestRepositoryFindByShortCodeReturnsURL(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	id := bson.NewObjectID()
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:          id,
+			LongURL:     record.LongURL,
+			ShortCode:   record.ShortCode,
+			AccessCount: 8,
+			CreatedAt:   record.CreatedAt,
+			UpdatedAt:   record.UpdatedAt,
+		}, nil, nil),
+	}
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
+
+	found, err := repository.FindByShortCode(context.Background(), " "+record.ShortCode+" ")
+	if err != nil {
+		t.Fatalf("expected URL to be found: %v", err)
+	}
+
+	if collection.findCount != 1 {
+		t.Fatalf("expected one lookup, got %d", collection.findCount)
+	}
+
+	filter, ok := collection.filter.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON filter, got %T", collection.filter)
+	}
+
+	assertActiveShortCodeFilter(t, filter, record.ShortCode, now)
+
+	if found.ID != id.Hex() || found.LongURL != record.LongURL || found.AccessCount != 8 {
+		t.Fatalf("expected found URL record, got %#v", found)
+	}
+}
+
+func TestRepositoryFindByShortCodeMapsMissingDocument(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(bson.D{}, mongo.ErrNoDocuments, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryFindByShortCodeValidatesShortCodeBeforeQuerying(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "invalid-code")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.findCount != 0 {
+		t.Fatalf("expected no lookup, got %d", collection.findCount)
+	}
+}
+
+func TestRepositoryFindByShortCodeWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("query failed")
+	collection := &fakeInsertOneCollection{
+		findResult: mongo.NewSingleResultFromDocument(bson.D{}, expectedErr, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.FindByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected query error, got %v", err)
+	}
+}
+
+func TestRepositoryUpdateLongURLReturnsUpdatedURL(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	id := bson.NewObjectID()
+	updatedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:          id,
+			LongURL:     "https://example.com/updated",
+			ShortCode:   record.ShortCode,
+			AccessCount: 8,
+			CreatedAt:   record.CreatedAt,
+			UpdatedAt:   updatedAt.UTC(),
+		}, nil, nil),
+	}
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
+
+	updated, err := repository.UpdateLongURL(context.Background(), urlmodel.UpdateLongURLParams{
+		ShortCode: " " + record.ShortCode + " ",
+		LongURL:   " https://example.com/updated ",
+		UpdatedAt: updatedAt,
+	})
+	if err != nil {
+		t.Fatalf("expected URL update to succeed: %v", err)
+	}
+
+	if collection.updateCount != 1 {
+		t.Fatalf("expected one update, got %d", collection.updateCount)
+	}
+
+	assertActiveShortCodeFilter(t, collection.updateFilter, record.ShortCode, now)
+	assertURLUpdate(t, collection.update, "https://example.com/updated", updatedAt.UTC())
+
+	updateOptions := findOneAndUpdateOptions(t, collection.updateOptions)
+	if updateOptions.ReturnDocument == nil || *updateOptions.ReturnDocument != options.After {
+		t.Fatalf("expected updated document to be returned, got %#v", updateOptions.ReturnDocument)
+	}
+
+	if updated.ID != id.Hex() || updated.LongURL != "https://example.com/updated" || !updated.UpdatedAt.Equal(updatedAt.UTC()) {
+		t.Fatalf("expected updated URL record, got %#v", updated)
+	}
+}
+
+func TestRepositoryUpdateLongURLMapsMissingDocument(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, mongo.ErrNoDocuments, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.UpdateLongURL(context.Background(), urlmodel.UpdateLongURLParams{
+		ShortCode: "AbC123",
+		LongURL:   "https://example.com/updated",
+		UpdatedAt: time.Now(),
+	})
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryUpdateLongURLValidatesParametersBeforeUpdating(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.UpdateLongURL(context.Background(), urlmodel.UpdateLongURLParams{
+		ShortCode: "invalid-code",
+		LongURL:   "https://example.com/updated",
+		UpdatedAt: time.Now(),
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.updateCount != 0 {
+		t.Fatalf("expected no update, got %d", collection.updateCount)
+	}
+}
+
+func TestRepositoryUpdateLongURLWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("update failed")
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, expectedErr, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.UpdateLongURL(context.Background(), urlmodel.UpdateLongURLParams{
+		ShortCode: "AbC123",
+		LongURL:   "https://example.com/updated",
+		UpdatedAt: time.Now(),
+	})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected update error, got %v", err)
+	}
+}
+
+func TestRepositoryDeleteByShortCodeDeletesURL(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	collection := &fakeInsertOneCollection{
+		deleteResult: &mongo.DeleteResult{
+			DeletedCount: 1,
+			Acknowledged: true,
+		},
+	}
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
+
+	if err := repository.DeleteByShortCode(context.Background(), " AbC123 "); err != nil {
+		t.Fatalf("expected URL deletion to succeed: %v", err)
+	}
+
+	if collection.deleteCount != 1 {
+		t.Fatalf("expected one delete, got %d", collection.deleteCount)
+	}
+
+	assertActiveShortCodeFilter(t, collection.deleteFilter, "AbC123", now)
+}
+
+func TestRepositoryDeleteByShortCodeMapsMissingURL(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		deleteResult: &mongo.DeleteResult{Acknowledged: true},
+	}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryDeleteByShortCodeValidatesShortCodeBeforeDeleting(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "invalid-code")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.deleteCount != 0 {
+		t.Fatalf("expected no delete, got %d", collection.deleteCount)
+	}
+}
+
+func TestRepositoryDeleteByShortCodeWrapsDeleteError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("delete failed")
+	collection := &fakeInsertOneCollection{deleteErr: expectedErr}
+	repository := newRepository(collection)
+
+	err := repository.DeleteByShortCode(context.Background(), "AbC123")
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected delete error, got %v", err)
+	}
+}
+
+func TestRepositoryRecordAccessReturnsURLWithIncrementedCount(t *testing.T) {
+	t.Parallel()
+
+	record := newValidURLRecord(t)
+	id := bson.NewObjectID()
+	accessedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.FixedZone("IST", 5*60*60+30*60))
+	accessedAtUTC := accessedAt.UTC()
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(urlDocument{
+			ID:             id,
+			LongURL:        record.LongURL,
+			ShortCode:      record.ShortCode,
+			AccessCount:    1,
+			CreatedAt:      record.CreatedAt,
+			UpdatedAt:      record.UpdatedAt,
+			LastAccessedAt: &accessedAtUTC,
+		}, nil, nil),
+	}
+	repository := newRepositoryWithClock(collection, func() time.Time { return now })
+
+	recorded, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  " " + record.ShortCode + " ",
+		AccessedAt: accessedAt,
+	})
+	if err != nil {
+		t.Fatalf("expected access to be recorded: %v", err)
+	}
+
+	if collection.updateCount != 1 {
+		t.Fatalf("expected one access update, got %d", collection.updateCount)
+	}
+
+	assertActiveShortCodeFilter(t, collection.updateFilter, record.ShortCode, now)
+	assertAccessUpdate(t, collection.update, accessedAtUTC)
+
+	updateOptions := findOneAndUpdateOptions(t, collection.updateOptions)
+	if updateOptions.ReturnDocument == nil || *updateOptions.ReturnDocument != options.After {
+		t.Fatalf("expected updated document to be returned, got %#v", updateOptions.ReturnDocument)
+	}
+
+	if recorded.ID != id.Hex() || recorded.AccessCount != 1 || recorded.LastAccessedAt == nil || !recorded.LastAccessedAt.Equal(accessedAtUTC) {
+		t.Fatalf("expected recorded access result, got %#v", recorded)
+	}
+}
+
+func TestRepositoryRecordAccessMapsMissingURL(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, mongo.ErrNoDocuments, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "AbC123",
+		AccessedAt: time.Now(),
+	})
+	if !errors.Is(err, urlmodel.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+}
+
+func TestRepositoryRecordAccessValidatesParametersBeforeUpdating(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "invalid-code",
+		AccessedAt: time.Now(),
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if collection.updateCount != 0 {
+		t.Fatalf("expected no access update, got %d", collection.updateCount)
+	}
+}
+
+func TestRepositoryRecordAccessRequiresTimestamp(t *testing.T) {
+	t.Parallel()
+
+	collection := &fakeInsertOneCollection{}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode: "AbC123",
+	})
+	if !errors.Is(err, urlmodel.ErrTimestampRequired) {
+		t.Fatalf("expected timestamp error, got %v", err)
+	}
+
+	if collection.updateCount != 0 {
+		t.Fatalf("expected no access update, got %d", collection.updateCount)
+	}
+}
+
+func TestRepositoryRecordAccessWrapsQueryError(t *testing.T) {
+	t.Parallel()
+
+	expectedErr := errors.New("update failed")
+	collection := &fakeInsertOneCollection{
+		updateResult: mongo.NewSingleResultFromDocument(bson.D{}, expectedErr, nil),
+	}
+	repository := newRepository(collection)
+
+	_, err := repository.RecordAccess(context.Background(), urlmodel.RecordAccessParams{
+		ShortCode:  "AbC123",
+		AccessedAt: time.Now(),
+	})
+	if !errors.Is(err, expectedErr) {
+		t.Fatalf("expected access update error, got %v", err)
+	}
+}
+
+func assertActiveShortCodeFilter(t *testing.T, value any, shortCode string, now time.Time) {
+	t.Helper()
+
+	filter, ok := value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON filter, got %T", value)
+	}
+
+	if len(filter) != 2 || filter[0].Key != "short_code" || filter[0].Value != shortCode || filter[1].Key != "$or" {
+		t.Fatalf("expected active short code filter, got %#v", filter)
+	}
+
+	conditions, ok := filter[1].Value.(bson.A)
+	if !ok || len(conditions) != 2 {
+		t.Fatalf("expected expiration conditions, got %#v", filter[1].Value)
+	}
+
+	if condition, ok := conditions[0].(bson.D); !ok || len(condition) != 1 || condition[0].Key != "expires_at" || condition[0].Value != nil {
+		t.Fatalf("expected non-expiring condition, got %#v", conditions[0])
+	}
+
+	condition, ok := conditions[1].(bson.D)
+	if !ok || len(condition) != 1 || condition[0].Key != "expires_at" {
+		t.Fatalf("expected future expiration condition, got %#v", conditions[1])
+	}
+
+	comparison, ok := condition[0].Value.(bson.D)
+	if !ok || len(comparison) != 1 || comparison[0].Key != "$gt" || comparison[0].Value != now {
+		t.Fatalf("expected expiration after %s, got %#v", now, condition[0].Value)
+	}
+}
+
+func assertURLUpdate(t *testing.T, value any, longURL string, updatedAt time.Time) {
+	t.Helper()
+
+	update, ok := value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON update, got %T", value)
+	}
+
+	if len(update) != 1 || update[0].Key != "$set" {
+		t.Fatalf("expected $set update, got %#v", update)
+	}
+
+	fields, ok := update[0].Value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON $set fields, got %T", update[0].Value)
+	}
+
+	if len(fields) != 2 || fields[0].Key != "url" || fields[0].Value != longURL || fields[1].Key != "updated_at" || fields[1].Value != updatedAt {
+		t.Fatalf("expected URL and updated timestamp fields, got %#v", fields)
+	}
+}
+
+func assertAccessUpdate(t *testing.T, value any, accessedAt time.Time) {
+	t.Helper()
+
+	update, ok := value.(bson.D)
+	if !ok {
+		t.Fatalf("expected BSON update, got %T", value)
+	}
+
+	if len(update) != 2 || update[0].Key != "$inc" || update[1].Key != "$set" {
+		t.Fatalf("expected $inc and $set update, got %#v", update)
+	}
+
+	increment, ok := update[0].Value.(bson.D)
+	if !ok || len(increment) != 1 || increment[0].Key != "access_count" || increment[0].Value != 1 {
+		t.Fatalf("expected access count increment, got %#v", update[0].Value)
+	}
+
+	fields, ok := update[1].Value.(bson.D)
+	if !ok || len(fields) != 1 || fields[0].Key != "last_accessed_at" || fields[0].Value != accessedAt {
+		t.Fatalf("expected access timestamp update, got %#v", update[1].Value)
+	}
+}
+
+func findOneAndUpdateOptions(t *testing.T, values []options.Lister[options.FindOneAndUpdateOptions]) options.FindOneAndUpdateOptions {
+	t.Helper()
+
+	var result options.FindOneAndUpdateOptions
+	for _, value := range values {
+		for _, apply := range value.List() {
+			if err := apply(&result); err != nil {
+				t.Fatalf("expected valid update option: %v", err)
+			}
+		}
+	}
+
+	return result
+}
+
+func listFindOptions(t *testing.T, values []options.Lister[options.FindOptions]) options.FindOptions {
+	t.Helper()
+
+	var result options.FindOptions
+	for _, value := range values {
+		for _, apply := range value.List() {
+			if err := apply(&result); err != nil {
+				t.Fatalf("expected valid find option: %v", err)
+			}
+		}
+	}
+
+	return result
+}
+
 func newValidURLRecord(t *testing.T) urlmodel.URL {
 	t.Helper()
 
@@ -153,10 +727,27 @@ func newValidURLRecord(t *testing.T) urlmodel.URL {
 }
 
 type fakeInsertOneCollection struct {
-	document    any
-	result      *mongo.InsertOneResult
-	err         error
-	insertCount int
+	document      any
+	result        *mongo.InsertOneResult
+	err           error
+	insertCount   int
+	filter        any
+	findResult    *mongo.SingleResult
+	findCount     int
+	updateFilter  any
+	update        any
+	updateOptions []options.Lister[options.FindOneAndUpdateOptions]
+	updateResult  *mongo.SingleResult
+	updateCount   int
+	deleteFilter  any
+	deleteResult  *mongo.DeleteResult
+	deleteErr     error
+	deleteCount   int
+	listCalled    bool
+	listFilter    any
+	listOptions   []options.Lister[options.FindOptions]
+	listCursor    *mongo.Cursor
+	listErr       error
 }
 
 func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ ...options.Lister[options.InsertOneOptions]) (*mongo.InsertOneResult, error) {
@@ -164,4 +755,35 @@ func (c *fakeInsertOneCollection) InsertOne(_ context.Context, document any, _ .
 	c.document = document
 
 	return c.result, c.err
+}
+
+func (c *fakeInsertOneCollection) FindOne(_ context.Context, filter any, _ ...options.Lister[options.FindOneOptions]) *mongo.SingleResult {
+	c.findCount++
+	c.filter = filter
+
+	return c.findResult
+}
+
+func (c *fakeInsertOneCollection) FindOneAndUpdate(_ context.Context, filter any, update any, options ...options.Lister[options.FindOneAndUpdateOptions]) *mongo.SingleResult {
+	c.updateCount++
+	c.updateFilter = filter
+	c.update = update
+	c.updateOptions = options
+
+	return c.updateResult
+}
+
+func (c *fakeInsertOneCollection) DeleteOne(_ context.Context, filter any, _ ...options.Lister[options.DeleteOneOptions]) (*mongo.DeleteResult, error) {
+	c.deleteCount++
+	c.deleteFilter = filter
+
+	return c.deleteResult, c.deleteErr
+}
+
+func (c *fakeInsertOneCollection) Find(_ context.Context, filter any, options ...options.Lister[options.FindOptions]) (*mongo.Cursor, error) {
+	c.listCalled = true
+	c.listFilter = filter
+	c.listOptions = options
+
+	return c.listCursor, c.listErr
 }
