@@ -13,6 +13,11 @@ export interface ShortLinkListPage {
   nextCursor?: string
 }
 
+export interface LinkStats extends ShortLink {
+  accessCount: number
+  lastAccessedAt?: string
+}
+
 /** Temporary workspace shape used by the mock adapter until API migration. */
 
 export interface LinkRecord {
