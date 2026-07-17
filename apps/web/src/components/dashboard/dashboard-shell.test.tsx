@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe("DashboardShell", () => {
   it("renders the authenticated links workspace", async () => {
-    vi.stubGlobal("fetch", sessionFetch(200))
+    vi.stubGlobal("fetch", dashboardFetch(200))
     renderDashboard()
 
     expect(await screen.findByText("user@example.com")).toBeDefined()
@@ -27,7 +27,7 @@ describe("DashboardShell", () => {
   })
 
   it("redirects anonymous visitors to login", async () => {
-    vi.stubGlobal("fetch", sessionFetch(401))
+    vi.stubGlobal("fetch", dashboardFetch(401))
     renderDashboard()
 
     await waitFor(() =>
@@ -38,7 +38,7 @@ describe("DashboardShell", () => {
   })
 
   it("shows a recoverable API outage state", async () => {
-    vi.stubGlobal("fetch", sessionFetch(502))
+    vi.stubGlobal("fetch", dashboardFetch(502))
     renderDashboard()
 
     expect(
@@ -48,10 +48,7 @@ describe("DashboardShell", () => {
   })
 
   it("logs out and returns to the landing page", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(authResponse(200))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+    const fetchMock = dashboardFetch(200)
     vi.stubGlobal("fetch", fetchMock)
     renderDashboard()
 
@@ -80,8 +77,20 @@ function renderDashboard() {
   )
 }
 
-function sessionFetch(status: number) {
-  return vi.fn().mockResolvedValue(authResponse(status))
+function dashboardFetch(sessionStatus: number) {
+  return vi.fn((input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path === "/api/auth/session") {
+      return Promise.resolve(authResponse(sessionStatus))
+    }
+    if (path.startsWith("/api/links")) {
+      return Promise.resolve(jsonResponse({ items: [] }))
+    }
+    if (path === "/api/auth/logout") {
+      return Promise.resolve(new Response(null, { status: 204 }))
+    }
+    return Promise.reject(new Error(`Unexpected request: ${path}`))
+  })
 }
 
 function authResponse(status: number) {
@@ -95,6 +104,10 @@ function authResponse(status: number) {
           },
         }
 
+  return jsonResponse(body, status)
+}
+
+function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
