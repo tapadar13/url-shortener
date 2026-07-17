@@ -17,12 +17,12 @@ afterEach(() => {
 })
 
 describe("DashboardShell", () => {
-  it("renders the authenticated account state", async () => {
+  it("renders the authenticated links workspace", async () => {
     vi.stubGlobal("fetch", sessionFetch(200))
     renderDashboard()
 
     expect(await screen.findByText("user@example.com")).toBeDefined()
-    expect(screen.getByText("Active")).toBeDefined()
+    expect(screen.getByRole("heading", { name: "Your links" })).toBeDefined()
     expect(navigation.replace).not.toHaveBeenCalled()
   })
 
