@@ -70,7 +70,8 @@ export function getLinkStats(
 
 export function getLinkAnalytics(
   shortCode: string,
-  range: AnalyticsRange = {}
+  range: AnalyticsRange = {},
+  signal?: AbortSignal
 ): Promise<LinkAnalytics> {
   const query = new URLSearchParams()
   if (range.from) {
@@ -82,7 +83,8 @@ export function getLinkAnalytics(
 
   const suffix = query.size > 0 ? `?${query.toString()}` : ""
   return requestBFF<LinkAnalytics>(
-    `${linkPath(shortCode)}/analytics${suffix}`
+    `${linkPath(shortCode)}/analytics${suffix}`,
+    { signal }
   )
 }
 

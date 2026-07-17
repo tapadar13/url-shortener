@@ -7,14 +7,17 @@ import {
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import type {
+  LinkAnalytics,
   LinkStats,
   ShortLink,
   ShortLinkListPage,
 } from "@/lib/links/types"
+import { analyticsDateRange } from "@/lib/links/analytics-range"
 
 import {
   linksQueryKey,
   useCreateLink,
+  useLinkAnalytics,
   useLinks,
   useUpdateLink,
 } from "./use-links"
@@ -91,6 +94,31 @@ describe("link hooks", () => {
       accessCount: existingLink.accessCount,
       lastAccessedAt: existingLink.lastAccessedAt,
     })
+  })
+
+  it("loads an explicit inclusive analytics range", async () => {
+    const range = analyticsDateRange(7)
+    const analytics: LinkAnalytics = {
+      shortCode: existingLink.shortCode,
+      ...range,
+      totalClicks: 3,
+      daily: [{ date: range.to, clicks: 3 }],
+    }
+    const fetchMock = jsonFetch(analytics)
+    vi.stubGlobal("fetch", fetchMock)
+    const queryClient = testQueryClient()
+    const { result } = renderHook(
+      () => useLinkAnalytics(existingLink.shortCode, 7),
+      { wrapper: queryWrapper(queryClient) }
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(result.current.data).toEqual(analytics)
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/links/${existingLink.shortCode}/analytics?from=${range.from}&to=${range.to}`,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 })
 

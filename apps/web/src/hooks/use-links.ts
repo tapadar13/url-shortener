@@ -11,10 +11,15 @@ import {
 import {
   createLink,
   deleteLink,
+  getLinkAnalytics,
   getLinkStats,
   listLinks,
   updateLink,
 } from "@/lib/links/browser-links"
+import {
+  analyticsDateRange,
+  type AnalyticsRangeDays,
+} from "@/lib/links/analytics-range"
 import type {
   CreateLinkInput,
   LinkStats,
@@ -133,5 +138,20 @@ export function useLinkStats(shortCode: string | null) {
     queryFn: ({ signal }) => getLinkStats(shortCode as string, signal),
     enabled: shortCode !== null,
     refetchInterval: 5_000,
+  })
+}
+
+export function useLinkAnalytics(
+  shortCode: string | null,
+  days: AnalyticsRangeDays
+) {
+  const range = analyticsDateRange(days)
+
+  return useQuery({
+    queryKey: ["link-analytics", shortCode, range.from, range.to],
+    queryFn: ({ signal }) =>
+      getLinkAnalytics(shortCode as string, range, signal),
+    enabled: shortCode !== null,
+    staleTime: 30_000,
   })
 }
