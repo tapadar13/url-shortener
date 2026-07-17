@@ -175,7 +175,7 @@ GET /shorten?limit=25
 Authorization: Bearer <access-token>
 ```
 
-Returns the authenticated user’s newest short URLs. `limit` defaults to `25` and must be between `1` and `100`.
+Returns the authenticated user’s newest short URLs with their current visit statistics. `limit` defaults to `25` and must be between `1` and `100`.
 
 ```json
 {
@@ -185,8 +185,10 @@ Returns the authenticated user’s newest short URLs. `limit` defaults to `25` a
       "url": "https://example.com/articles/123",
       "shortCode": "AbC1234",
       "shortUrl": "http://localhost:8080/AbC1234",
+      "accessCount": 42,
       "createdAt": "2026-07-12T08:00:00Z",
-      "updatedAt": "2026-07-12T08:00:00Z"
+      "updatedAt": "2026-07-12T08:00:00Z",
+      "lastAccessedAt": "2026-07-17T09:15:00Z"
     }
   ],
   "nextCursor": "eyJ2IjoxLCJjcmVhdGVkQXQiOiIyMDI2LTA3LTEyVDA4OjAwOjAwWiIsImlkIjoiNTA3ZjFmNzdiY2Y4NmNkNzk5NDM5MDExIn0"
