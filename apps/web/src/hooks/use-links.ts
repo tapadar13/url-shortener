@@ -14,43 +14,40 @@ import {
   getLinkStats,
   listLinks,
   updateLink,
-} from "@/lib/links/mock-api"
+} from "@/lib/links/browser-links"
 import type {
   CreateLinkInput,
-  LinkListPage,
-  LinkRecord,
+  LinkStats,
+  ShortLinkListPage,
 } from "@/lib/links/types"
 
-const LINKS_KEY = ["links"] as const
+export const linksQueryKey = ["links"] as const
 
-type LinksData = InfiniteData<LinkListPage, string | undefined>
+type LinksData = InfiniteData<ShortLinkListPage, string | undefined>
 
 export function useLinks() {
   return useInfiniteQuery({
-    queryKey: LINKS_KEY,
-    queryFn: ({ pageParam }) => listLinks({ cursor: pageParam }),
+    queryKey: linksQueryKey,
+    queryFn: ({ pageParam, signal }) =>
+      listLinks({ cursor: pageParam, limit: 8, signal }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    // Ambient refresh keeps the simulated visit counts ticking.
-    refetchInterval: 7_000,
+    staleTime: 15_000,
   })
 }
 
 function mapPages(
   data: LinksData,
-  mapItem: (item: LinkRecord) => LinkRecord | null
+  mapItem: (item: LinkStats) => LinkStats | null
 ): LinksData {
-  let removed = 0
-  const pages = data.pages.map((page) => {
-    const items = page.items
-      .map(mapItem)
-      .filter((item): item is LinkRecord => item !== null)
-    removed += page.items.length - items.length
-    return { ...page, items }
-  })
   return {
     ...data,
-    pages: pages.map((page) => ({ ...page, total: page.total - removed })),
+    pages: data.pages.map((page) => ({
+      ...page,
+      items: page.items
+        .map(mapItem)
+        .filter((item): item is LinkStats => item !== null),
+    })),
   }
 }
 
@@ -60,7 +57,11 @@ export function useCreateLink() {
   return useMutation({
     mutationFn: (input: CreateLinkInput) => createLink(input),
     onSuccess: (created) => {
-      queryClient.setQueryData<LinksData>(LINKS_KEY, (data) => {
+      if (!queryClient.getQueryData<LinksData>(linksQueryKey)) {
+        void queryClient.invalidateQueries({ queryKey: linksQueryKey })
+        return
+      }
+      queryClient.setQueryData<LinksData>(linksQueryKey, (data) => {
         if (!data || data.pages.length === 0) return data
         const [first, ...rest] = data.pages
         return {
@@ -68,10 +69,9 @@ export function useCreateLink() {
           pages: [
             {
               ...first,
-              items: [created, ...first.items],
-              total: first.total + 1,
+              items: [{ ...created, accessCount: 0 }, ...first.items],
             },
-            ...rest.map((page) => ({ ...page, total: page.total + 1 })),
+            ...rest,
           ],
         }
       })
@@ -86,10 +86,12 @@ export function useUpdateLink() {
     mutationFn: (params: { shortCode: string; url: string }) =>
       updateLink(params.shortCode, params.url),
     onSuccess: (updated) => {
-      queryClient.setQueryData<LinksData>(LINKS_KEY, (data) =>
+      queryClient.setQueryData<LinksData>(linksQueryKey, (data) =>
         data
           ? mapPages(data, (item) =>
-              item.shortCode === updated.shortCode ? updated : item
+              item.shortCode === updated.shortCode
+                ? { ...item, ...updated }
+                : item
             )
           : data
       )
@@ -103,9 +105,9 @@ export function useDeleteLink() {
   return useMutation({
     mutationFn: (shortCode: string) => deleteLink(shortCode),
     onMutate: async (shortCode) => {
-      await queryClient.cancelQueries({ queryKey: LINKS_KEY })
-      const previous = queryClient.getQueryData<LinksData>(LINKS_KEY)
-      queryClient.setQueryData<LinksData>(LINKS_KEY, (data) =>
+      await queryClient.cancelQueries({ queryKey: linksQueryKey })
+      const previous = queryClient.getQueryData<LinksData>(linksQueryKey)
+      queryClient.setQueryData<LinksData>(linksQueryKey, (data) =>
         data
           ? mapPages(data, (item) =>
               item.shortCode === shortCode ? null : item
@@ -116,11 +118,11 @@ export function useDeleteLink() {
     },
     onError: (_error, _shortCode, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(LINKS_KEY, context.previous)
+        queryClient.setQueryData(linksQueryKey, context.previous)
       }
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: LINKS_KEY })
+      queryClient.invalidateQueries({ queryKey: linksQueryKey })
     },
   })
 }
@@ -128,7 +130,7 @@ export function useDeleteLink() {
 export function useLinkStats(shortCode: string | null) {
   return useQuery({
     queryKey: ["link-stats", shortCode],
-    queryFn: () => getLinkStats(shortCode as string),
+    queryFn: ({ signal }) => getLinkStats(shortCode as string, signal),
     enabled: shortCode !== null,
     refetchInterval: 5_000,
   })

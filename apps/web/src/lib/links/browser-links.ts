@@ -11,6 +11,7 @@ import type {
 interface ListLinksParams {
   cursor?: string
   limit?: number
+  signal?: AbortSignal
 }
 
 interface AnalyticsRange {
@@ -30,7 +31,9 @@ export function listLinks(
   }
 
   const suffix = query.size > 0 ? `?${query.toString()}` : ""
-  return requestBFF<ShortLinkListPage>(`/api/links${suffix}`)
+  return requestBFF<ShortLinkListPage>(`/api/links${suffix}`, {
+    signal: params.signal,
+  })
 }
 
 export function createLink(input: CreateLinkInput): Promise<ShortLink> {
@@ -58,8 +61,11 @@ export function deleteLink(shortCode: string): Promise<void> {
   return requestBFF<void>(linkPath(shortCode), { method: "DELETE" })
 }
 
-export function getLinkStats(shortCode: string): Promise<LinkStats> {
-  return requestBFF<LinkStats>(`${linkPath(shortCode)}/stats`)
+export function getLinkStats(
+  shortCode: string,
+  signal?: AbortSignal
+): Promise<LinkStats> {
+  return requestBFF<LinkStats>(`${linkPath(shortCode)}/stats`, { signal })
 }
 
 export function getLinkAnalytics(

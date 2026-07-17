@@ -65,7 +65,10 @@ export function Workspace({ user }: { user: AuthUser }) {
   const shortenInputRef = useRef<HTMLInputElement>(null)
   const linksQuery = useLinks()
   const logout = useLogout()
-  const total = linksQuery.data?.pages[0]?.total
+  const loadedCount = linksQuery.data?.pages.reduce(
+    (count, page) => count + page.items.length,
+    0
+  )
 
   const focusShortenInput = useCallback(() => {
     const input = shortenInputRef.current
@@ -114,7 +117,9 @@ export function Workspace({ user }: { user: AuthUser }) {
             </p>
             <p className="mt-1.5 text-sm font-medium">Personal workspace</p>
             <p className="mt-0.5 text-xs text-muted-foreground/80">
-              {total === undefined ? "…" : `${formatCount(total)} active links`}
+              {loadedCount === undefined
+                ? "…"
+                : `${formatCount(loadedCount)}${linksQuery.hasNextPage ? "+" : ""} active links`}
             </p>
           </div>
           <Link

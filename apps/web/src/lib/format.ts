@@ -34,3 +34,12 @@ export function displayUrl(raw: string): string {
     return raw
   }
 }
+
+export function displayShortUrl(raw: string): string {
+  try {
+    const parsed = new URL(raw)
+    return `${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`
+  } catch {
+    return raw
+  }
+}

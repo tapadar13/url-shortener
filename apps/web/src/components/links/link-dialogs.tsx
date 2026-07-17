@@ -24,12 +24,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useLinkStats, useUpdateLink } from "@/hooks/use-links"
-import { siteConfig } from "@/config/site"
-import { formatCount, formatDate, timeAgo } from "@/lib/format"
-import { ApiError, type LinkRecord } from "@/lib/links/types"
+import { displayShortUrl, formatCount, formatDate, timeAgo } from "@/lib/format"
+import { linkErrorMessage } from "@/lib/links/error-message"
+import type { LinkStats } from "@/lib/links/types"
 
 interface EditDestinationDialogProps {
-  link: LinkRecord
+  link: LinkStats
   open: boolean
   onOpenChange: (open: boolean) => void
 }
@@ -54,7 +54,7 @@ function EditDestinationForm({
   link,
   onOpenChange,
 }: {
-  link: LinkRecord
+  link: LinkStats
   onOpenChange: (open: boolean) => void
 }) {
   const [url, setUrl] = useState(link.url)
@@ -71,15 +71,16 @@ function EditDestinationForm({
         onSuccess: () => {
           onOpenChange(false)
           toast.success(
-            `${siteConfig.shortHost}/${link.shortCode} now points somewhere new`,
+            `${displayShortUrl(link.shortUrl)} now points somewhere new`,
             { description: "Everyone with the link lands on the fresh destination." }
           )
         },
         onError: (mutationError) => {
           setError(
-            mutationError instanceof ApiError
-              ? mutationError.message
-              : "Something went wrong. Try again."
+            linkErrorMessage(
+              mutationError,
+              "Something went wrong. Try again."
+            )
           )
         },
       }
@@ -90,7 +91,7 @@ function EditDestinationForm({
     <>
       <DialogHeader>
         <DialogTitle className="font-mono text-base">
-          {siteConfig.shortHost}/{link.shortCode}
+          {displayShortUrl(link.shortUrl)}
         </DialogTitle>
         <DialogDescription>
           Point this short link somewhere new. The code stays the same, and
@@ -146,27 +147,41 @@ function EditDestinationForm({
 }
 
 interface StatsDialogProps {
-  shortCode: string | null
+  link: LinkStats | null
   onOpenChange: (open: boolean) => void
 }
 
-export function StatsDialog({ shortCode, onOpenChange }: StatsDialogProps) {
-  const stats = useLinkStats(shortCode)
+export function StatsDialog({ link, onOpenChange }: StatsDialogProps) {
+  const stats = useLinkStats(link?.shortCode ?? null)
 
   return (
-    <Dialog open={shortCode !== null} onOpenChange={onOpenChange}>
+    <Dialog open={link !== null} onOpenChange={onOpenChange}>
       <DialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 p-6 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl sm:max-w-md">
         <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 bg-brand" />
         <DialogHeader>
           <DialogTitle className="font-mono text-base">
-            {siteConfig.shortHost}/{shortCode}
+            {link ? displayShortUrl(link.shortUrl) : "Link statistics"}
           </DialogTitle>
           <DialogDescription>
             Live numbers straight from the counter — no sampling, no delay.
           </DialogDescription>
         </DialogHeader>
 
-        {stats.isPending || !stats.data ? (
+        {stats.isError ? (
+          <div className="rounded-xl border border-foreground/8 bg-card/70 px-5 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load this link&apos;s statistics.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void stats.refetch()}
+              className="mt-3"
+            >
+              Try again
+            </Button>
+          </div>
+        ) : stats.isPending || !stats.data ? (
           <div className="grid grid-cols-2 gap-2.5">
             <Skeleton className="h-20 rounded-xl" />
             <Skeleton className="h-20 rounded-xl" />

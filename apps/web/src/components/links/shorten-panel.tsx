@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useCreateLink } from "@/hooks/use-links"
 import { siteConfig } from "@/config/site"
-import { ApiError } from "@/lib/links/types"
+import { displayShortUrl } from "@/lib/format"
+import { linkErrorMessage } from "@/lib/links/error-message"
+import type { ShortLink } from "@/lib/links/types"
 import { cn } from "@/lib/utils"
 
 interface ShortenPanelProps {
@@ -21,11 +23,11 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
   const [customCode, setCustomCode] = useState("")
   const [customizeOpen, setCustomizeOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [lastCreated, setLastCreated] = useState<string | null>(null)
+  const [lastCreated, setLastCreated] = useState<ShortLink | null>(null)
   const [copied, setCopied] = useState(false)
   const createLink = useCreateLink()
 
-  const shortUrl = lastCreated ? `${siteConfig.shortHost}/${lastCreated}` : null
+  const shortUrl = lastCreated ? displayShortUrl(lastCreated.shortUrl) : null
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
@@ -36,20 +38,21 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
       { url, shortCode: customizeOpen ? customCode : undefined },
       {
         onSuccess: (created) => {
-          setLastCreated(created.shortCode)
+          setLastCreated(created)
           setCopied(false)
           setUrl("")
           setCustomCode("")
           setCustomizeOpen(false)
-          toast.success(`${siteConfig.shortHost}/${created.shortCode} is live`, {
+          toast.success(`${displayShortUrl(created.shortUrl)} is live`, {
             description: "Ready to share — every visit will be counted.",
           })
         },
         onError: (mutationError) => {
           setError(
-            mutationError instanceof ApiError
-              ? mutationError.message
-              : "Something went wrong. Try again."
+            linkErrorMessage(
+              mutationError,
+              "Something went wrong. Try again."
+            )
           )
         },
       }
@@ -57,9 +60,9 @@ export function ShortenPanel({ inputRef }: ShortenPanelProps) {
   }
 
   const copyShortUrl = async () => {
-    if (!shortUrl) return
+    if (!lastCreated) return
     try {
-      await navigator.clipboard.writeText(`https://${shortUrl}`)
+      await navigator.clipboard.writeText(lastCreated.shortUrl)
       setCopied(true)
       toast.success("Copied to clipboard")
       setTimeout(() => setCopied(false), 2000)

@@ -39,19 +39,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useDeleteLink, type useLinks } from "@/hooks/use-links"
-import { siteConfig } from "@/config/site"
-import { displayUrl, formatCount, timeAgo } from "@/lib/format"
-import type { LinkRecord } from "@/lib/links/types"
+import { displayShortUrl, displayUrl, formatCount, timeAgo } from "@/lib/format"
+import type { LinkStats } from "@/lib/links/types"
 import { cn } from "@/lib/utils"
 
-function CopyButton({ shortCode }: { shortCode: string }) {
+function CopyButton({ shortUrl }: { shortUrl: string }) {
   const [copied, setCopied] = useState(false)
+  const displayValue = displayShortUrl(shortUrl)
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(
-        `https://${siteConfig.shortHost}/${shortCode}`
-      )
+      await navigator.clipboard.writeText(shortUrl)
       setCopied(true)
       toast.success("Copied to clipboard")
       setTimeout(() => setCopied(false), 1800)
@@ -65,7 +63,7 @@ function CopyButton({ shortCode }: { shortCode: string }) {
       variant="ghost"
       size="icon-sm"
       onClick={copy}
-      aria-label={`Copy ${siteConfig.shortHost}/${shortCode}`}
+      aria-label={`Copy ${displayValue}`}
       className={cn(
         "text-muted-foreground/60 hover:text-foreground",
         copied && "text-brand hover:text-brand"
@@ -76,7 +74,7 @@ function CopyButton({ shortCode }: { shortCode: string }) {
   )
 }
 
-function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
+function LinkRow({ link, index }: { link: LinkStats; index: number }) {
   const [editOpen, setEditOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -86,7 +84,7 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
     setConfirmDelete(false)
     deleteLink.mutate(link.shortCode, {
       onSuccess: () =>
-        toast.success(`Deleted ${siteConfig.shortHost}/${link.shortCode}`),
+        toast.success(`Deleted ${displayShortUrl(link.shortUrl)}`),
       onError: () => toast.error("Couldn't delete that link. It's back."),
     })
   }
@@ -110,9 +108,9 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
             onClick={() => setStatsOpen(true)}
             className="truncate rounded-md font-mono text-[13px] font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring"
           >
-            {siteConfig.shortHost}/{link.shortCode}
+            {displayShortUrl(link.shortUrl)}
           </button>
-          <CopyButton shortCode={link.shortCode} />
+          <CopyButton shortUrl={link.shortUrl} />
         </div>
         <p className="mt-0.5 flex items-baseline gap-1.5 font-mono text-[11px] text-muted-foreground/70">
           <span className="truncate">{displayUrl(link.url)}</span>
@@ -141,7 +139,7 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
           <Button
             variant="ghost"
             size="icon-sm"
-            aria-label={`Actions for ${siteConfig.shortHost}/${link.shortCode}`}
+            aria-label={`Actions for ${displayShortUrl(link.shortUrl)}`}
             className="shrink-0 text-muted-foreground/60 hover:text-foreground"
           >
             <MoreHorizontal aria-hidden="true" />
@@ -179,14 +177,14 @@ function LinkRow({ link, index }: { link: LinkRecord; index: number }) {
         onOpenChange={setEditOpen}
       />
       <StatsDialog
-        shortCode={statsOpen ? link.shortCode : null}
+        link={statsOpen ? link : null}
         onOpenChange={setStatsOpen}
       />
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent className="overflow-hidden rounded-[1.5rem] border-foreground/10 bg-background/95 shadow-[0_30px_100px_-35px_rgb(20_24_16/0.7)] backdrop-blur-xl">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              Delete {siteConfig.shortHost}/{link.shortCode}?
+              Delete {displayShortUrl(link.shortUrl)}?
             </AlertDialogTitle>
             <AlertDialogDescription>
               {`Anyone opening this short link afterwards will hit a dead end, and its ${formatCount(link.accessCount)} recorded visits go with it. This can't be undone.`}
@@ -226,8 +224,6 @@ export function LinksList({
 }) {
   const pages = query.data?.pages ?? []
   const links = pages.flatMap((page) => page.items)
-  const total = pages[0]?.total ?? 0
-  const remaining = Math.max(0, total - links.length)
 
   return (
     <section aria-label="All links">
@@ -236,7 +232,7 @@ export function LinksList({
           All links
           {query.isSuccess && (
             <span className="ml-2 font-mono text-xs font-normal text-muted-foreground/70">
-              {formatCount(total)}
+              {formatCount(links.length)}{query.hasNextPage ? "+" : ""}
             </span>
           )}
         </h2>
@@ -305,10 +301,7 @@ export function LinksList({
             ) : (
               <ArrowDown data-icon="inline-start" aria-hidden="true" />
             )}
-            Show {Math.min(remaining, 8)} more
-            <span className="text-muted-foreground/60">
-              · {formatCount(remaining)} remaining
-            </span>
+            Show more
           </Button>
         </div>
       )}
