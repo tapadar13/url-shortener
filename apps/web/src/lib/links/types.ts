@@ -1,9 +1,19 @@
-/**
- * Shapes mirror the Go API's JSON contract (`internal/transport/httpapi`).
- * `accessCount` / `lastAccessedAt` ride along on list items here because the
- * workspace shows them per row; the live list endpoint will need to expose
- * them the same way (they already exist on the domain model).
- */
+export interface ShortLink {
+  id: string
+  url: string
+  shortCode: string
+  shortUrl: string
+  createdAt: string
+  updatedAt: string
+  expiresAt?: string
+}
+
+export interface ShortLinkListPage {
+  items: ShortLink[]
+  nextCursor?: string
+}
+
+/** Temporary workspace shape used by the mock adapter until API migration. */
 
 export interface LinkRecord {
   id: string
