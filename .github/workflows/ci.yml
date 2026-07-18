@@ -107,3 +107,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build --tag url-shortener-web:ci apps/web
+
+  end-to-end:
+    name: Full-Stack Browser Tests
+    runs-on: ubuntu-latest
+    needs: [api-unit, web]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('apps/web/package-lock.json') }}
+      - run: npx playwright install-deps chromium
+      - run: npx playwright install chromium
+      - run: npm run test:e2e:full
+      - name: Upload Playwright failure report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
