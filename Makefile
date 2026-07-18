@@ -1,6 +1,6 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
-.PHONY: help api-run api-build api-test api-integration api-vet api-check api-image web-dev web-lint web-test web-build web-check web-image mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
+.PHONY: help api-run api-build api-test api-integration api-vet api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-check web-image mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
 
 help:
 	@printf '%s\n' \
@@ -14,6 +14,8 @@ help:
 		'web-dev      Start the Next.js frontend' \
 		'web-lint     Lint the frontend' \
 		'web-test     Run frontend tests' \
+		'web-e2e      Run fast frontend browser tests' \
+		'web-e2e-full Run full-stack browser tests' \
 		'web-build    Build the frontend' \
 		'web-check    Run frontend lint, tests, and build' \
 		'web-image    Build the frontend container image' \
@@ -55,6 +57,12 @@ web-lint:
 
 web-test:
 	@cd apps/web && npm run test
+
+web-e2e:
+	@cd apps/web && npm run test:e2e
+
+web-e2e-full:
+	@cd apps/web && npm run test:e2e:full
 
 web-build:
 	@cd apps/web && npm run build

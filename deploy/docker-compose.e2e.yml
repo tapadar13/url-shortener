@@ -1,0 +1,15 @@
+name: url-shortener-e2e
+
+services:
+  mongodb:
+    image: mongo:7.0
+    ports:
+      - "127.0.0.1:${E2E_MONGODB_PORT:-27018}:27017"
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand({ ping: 1 }).ok\" | grep 1"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+      start_period: 5s

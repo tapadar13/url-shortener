@@ -4,15 +4,23 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { DashboardShell } from "./dashboard-shell"
 
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }))
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  replacePage: vi.fn(),
+}))
 
 vi.mock("next/navigation", () => ({
   useRouter: () => navigation,
 }))
 
+vi.mock("@/lib/navigation/browser-navigation", () => ({
+  replacePage: navigation.replacePage,
+}))
+
 afterEach(() => {
   cleanup()
   navigation.replace.mockReset()
+  navigation.replacePage.mockReset()
   vi.unstubAllGlobals()
 })
 
@@ -54,7 +62,9 @@ describe("DashboardShell", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Sign out" }))
 
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/"))
+    await waitFor(() =>
+      expect(navigation.replacePage).toHaveBeenCalledWith("/")
+    )
     expect(fetchMock).toHaveBeenLastCalledWith(
       "/api/auth/logout",
       expect.objectContaining({ method: "POST" })

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import {
   ArrowLeft,
   BarChart3,
@@ -22,6 +21,7 @@ import { useLinks } from "@/hooks/use-links"
 import { siteConfig } from "@/config/site"
 import { formatCount } from "@/lib/format"
 import type { AuthUser } from "@/lib/auth/types"
+import { replacePage } from "@/lib/navigation/browser-navigation"
 
 function SidebarNavItem({
   icon: Icon,
@@ -61,7 +61,6 @@ function SidebarNavItem({
 }
 
 export function Workspace({ user }: { user: AuthUser }) {
-  const router = useRouter()
   const shortenInputRef = useRef<HTMLInputElement>(null)
   const linksQuery = useLinks()
   const logout = useLogout()
@@ -171,7 +170,7 @@ export function Workspace({ user }: { user: AuthUser }) {
                 disabled={logout.isPending}
                 onClick={() =>
                   logout.mutate(undefined, {
-                    onSettled: () => router.replace("/"),
+                    onSettled: () => replacePage("/"),
                   })
                 }
               >

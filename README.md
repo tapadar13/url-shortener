@@ -451,3 +451,14 @@ npm run lint
 npm run test
 npm run build
 ```
+
+Run browser tests after installing Playwright's Chromium build:
+
+```bash
+cd apps/web
+npx playwright install chromium
+npm run test:e2e
+npm run test:e2e:full
+```
+
+The fast suite starts only Next.js. The full suite requires Docker and exercises the real Next.js BFF, Go API, and an isolated temporary MongoDB instance. Playwright failure reports are retained by CI for seven days.
