@@ -26,7 +26,10 @@ test("creates, redirects, updates, and deletes a short link", async ({
   await page.getByLabel("Custom code").fill(shortCode)
   await page.getByRole("button", { name: "Shorten" }).click()
 
-  const linkButton = links.getByRole("button", { name: displayShortURL })
+  const linkButton = links.getByRole("button", {
+    name: displayShortURL,
+    exact: true,
+  })
   await expect(linkButton).toBeVisible()
   await expect(links).toContainText(`example.com/original-${shortCode}`)
 
