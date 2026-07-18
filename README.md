@@ -97,6 +97,7 @@ Run `make help` from the repository root to list local development commands.
 ```bash
 make api-check
 make web-check
+make security-check
 make load-smoke
 make data-up
 make stack-up

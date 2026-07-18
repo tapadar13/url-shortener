@@ -1,0 +1,55 @@
+name: Dependency Security
+
+on:
+  push:
+    paths:
+      - ".github/workflows/security.yml"
+      - "apps/api/**"
+      - "apps/web/package.json"
+      - "apps/web/package-lock.json"
+      - "Makefile"
+  pull_request:
+    paths:
+      - ".github/workflows/security.yml"
+      - "apps/api/**"
+      - "apps/web/package.json"
+      - "apps/web/package-lock.json"
+      - "Makefile"
+  schedule:
+    - cron: "30 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  go-vulnerabilities:
+    name: Go Vulnerability Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/api/go.mod
+          cache-dependency-path: apps/api/go.sum
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+
+  frontend-dependencies:
+    name: Frontend Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm audit --audit-level=high
