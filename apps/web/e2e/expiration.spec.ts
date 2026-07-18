@@ -23,15 +23,15 @@ test("creates an active link with a preset expiration", async ({
   await page.getByRole("button", { name: "Link options" }).click()
   await page.getByLabel("Custom code").fill(shortCode)
 
-  const expirationButton = page.getByRole("button", {
-    name: "Never",
-    exact: true,
-  })
-  await expirationButton.click()
+  await page
+    .getByRole("button", { name: "Never", exact: true })
+    .click()
   await page
     .getByRole("menuitemradio", { name: "In 24 hours" })
     .click()
-  await expect(expirationButton).toHaveAccessibleName("In 24 hours")
+  await expect(
+    page.getByRole("button", { name: "In 24 hours", exact: true })
+  ).toBeVisible()
 
   await page.getByRole("button", { name: "Shorten" }).click()
 
