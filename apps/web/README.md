@@ -9,7 +9,7 @@ The Next.js application for the URL shortener. It contains the public landing pa
 - Tailwind CSS
 - shadcn/ui + Lucide icons
 - TanStack Query
-- Vitest and Testing Library
+- Vitest, Testing Library, and Playwright
 
 ## Features
 
@@ -33,13 +33,38 @@ Then open http://localhost:3000.
 
 ## Scripts
 
-| Command         | Purpose                  |
-| --------------- | ------------------------ |
-| `npm run dev`   | Start the dev server     |
-| `npm run lint`  | Run ESLint               |
-| `npm run test`  | Run the Vitest suite      |
-| `npm run build` | Production build         |
-| `npm run start` | Serve a production build |
+| Command                 | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `npm run dev`           | Start the dev server                     |
+| `npm run lint`          | Run ESLint                               |
+| `npm run test`          | Run the Vitest suite                     |
+| `npm run test:e2e`      | Run fast frontend browser tests          |
+| `npm run test:e2e:full` | Run full-stack browser tests with Docker |
+| `npm run test:e2e:ui`   | Open Playwright's interactive runner     |
+| `npm run build`         | Production build                         |
+| `npm run start`         | Serve a production build                 |
+
+## End-to-End Tests
+
+Install the Chromium build managed by Playwright once:
+
+```bash
+npx playwright install chromium
+```
+
+Run the frontend-only smoke suite:
+
+```bash
+npm run test:e2e
+```
+
+Run the full authentication suite with Docker Desktop running:
+
+```bash
+npm run test:e2e:full
+```
+
+The full runner starts a disposable MongoDB container on `127.0.0.1:27018`, the Go API on `127.0.0.1:18080`, and Next.js on `127.0.0.1:3100`. It removes the container and its temporary data after the suite, including after test failures.
 
 ## Container
 
@@ -64,6 +89,8 @@ src/
   hooks/              Authentication and link query hooks
   lib/                BFF clients, route handlers, and domain helpers
   providers/          TanStack Query and theme providers
+e2e/                  Playwright browser tests
+scripts/              Full-stack E2E orchestration
 ```
 
 The working product name lives in `src/config/site.ts` and is referenced
