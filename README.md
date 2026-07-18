@@ -40,7 +40,7 @@ tests/
 
 ## Prerequisites
 
-- Go 1.23.5 or newer
+- Go 1.26.5 or newer
 - Docker and Docker Compose
 - Node.js and npm for the frontend
 
