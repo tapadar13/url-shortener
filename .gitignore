@@ -15,9 +15,11 @@ coverage.out
 # Node dependencies and build output
 node_modules/
 .next/
+.next-e2e/
 out/
 dist/
+playwright-report/
+test-results/
 
 # Logs
 *.log
-
