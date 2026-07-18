@@ -11,7 +11,10 @@ apps/
   api/    Go HTTP API and MongoDB persistence
   web/    Next.js landing page and authenticated workspace
 deploy/
-  docker-compose.yml    Local web, API, MongoDB, and Redis stack
+  docker-compose.yml         Local web, API, MongoDB, and Redis stack
+  docker-compose.load.yml    Isolated API load-test stack
+tests/
+  load/   k6 smoke, management, and redirect workloads
 ```
 
 ## Current Features
@@ -94,9 +97,13 @@ Run `make help` from the repository root to list local development commands.
 ```bash
 make api-check
 make web-check
+make load-smoke
 make data-up
 make stack-up
 ```
+
+Load-test scenarios, thresholds, and tuning variables are documented in
+[tests/load/README.md](tests/load/README.md).
 
 ## API
 

@@ -1,0 +1,47 @@
+name: Load Tests
+
+on:
+  push:
+    paths:
+      - ".github/workflows/load-tests.yml"
+      - "apps/api/**"
+      - "deploy/docker-compose.load.yml"
+      - "tests/load/**"
+      - "Makefile"
+  pull_request:
+    paths:
+      - ".github/workflows/load-tests.yml"
+      - "apps/api/**"
+      - "deploy/docker-compose.load.yml"
+      - "tests/load/**"
+      - "Makefile"
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Load scenario to execute
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - management
+          - redirects
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k6:
+    name: k6 ${{ github.event_name == 'workflow_dispatch' && inputs.scenario || 'smoke' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      LOAD_SCENARIO: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario || 'smoke' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run load scenario
+        run: ./tests/load/run.sh "${LOAD_SCENARIO}"

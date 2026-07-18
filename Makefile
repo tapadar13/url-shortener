@@ -1,6 +1,7 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
 
 .PHONY: help api-run api-build api-test api-integration api-vet api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-check web-image mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
+.PHONY: load-smoke load-management load-redirects load-down
 
 help:
 	@printf '%s\n' \
@@ -19,6 +20,10 @@ help:
 		'web-build    Build the frontend' \
 		'web-check    Run frontend lint, tests, and build' \
 		'web-image    Build the frontend container image' \
+		'load-smoke   Run the load-test probe smoke scenario' \
+		'load-management Run the authenticated management load scenario' \
+		'load-redirects Run the redirect throughput load scenario' \
+		'load-down    Remove the disposable load-test stack' \
 		'mongo-up     Start MongoDB for local API development' \
 		'mongo-down   Stop the local MongoDB service' \
 		'redis-up     Start Redis for local API development' \
@@ -71,6 +76,18 @@ web-check: web-lint web-test web-build
 
 web-image:
 	@docker build --tag url-shortener-web:local apps/web
+
+load-smoke:
+	@./tests/load/run.sh smoke
+
+load-management:
+	@./tests/load/run.sh management
+
+load-redirects:
+	@./tests/load/run.sh redirects
+
+load-down:
+	@docker compose -f deploy/docker-compose.load.yml --profile load down --volumes --remove-orphans
 
 mongo-up:
 	@$(COMPOSE) up -d mongodb
