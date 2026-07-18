@@ -2,8 +2,6 @@ name: Load Tests
 
 on:
   push:
-    branches:
-      - master
     paths:
       - ".github/workflows/load-tests.yml"
       - "apps/api/**"

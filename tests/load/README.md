@@ -79,7 +79,7 @@ infrastructure before using results for sizing or service-level objectives.
 
 ## CI
 
-Relevant pull requests and `master` pushes run the probe smoke scenario. The
+Relevant branch pushes and pull requests run the probe smoke scenario. The
 GitHub Actions `Load Tests` workflow can also be started manually with any of
 the three scenarios. Manual management and redirect runs use the same defaults
 and cleanup path as local execution.
