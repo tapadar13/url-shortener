@@ -1,8 +1,9 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
 GOVULNCHECK_VERSION = v1.6.0
 GO_VERSION = $(shell awk '/^go / { print $$2 }' apps/api/go.mod)
+GITLEAKS_IMAGE = ghcr.io/gitleaks/gitleaks:v8.30.1
 
-.PHONY: help api-run api-build api-test api-integration api-vet api-audit api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-audit web-check web-image security-check mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
+.PHONY: help api-run api-build api-test api-integration api-vet api-audit api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-audit web-check web-image secrets-audit security-check mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
 .PHONY: load-smoke load-management load-redirects load-down
 
 help:
@@ -24,7 +25,8 @@ help:
 		'web-audit    Scan frontend dependencies for high-severity vulnerabilities' \
 		'web-check    Run frontend lint, tests, and build' \
 		'web-image    Build the frontend container image' \
-		'security-check Run backend and frontend vulnerability scans' \
+		'secrets-audit Scan Git history for committed secrets' \
+		'security-check Run vulnerability and secret scans' \
 		'load-smoke   Run the load-test probe smoke scenario' \
 		'load-management Run the authenticated management load scenario' \
 		'load-redirects Run the redirect throughput load scenario' \
@@ -88,7 +90,10 @@ web-check: web-lint web-test web-build
 web-image:
 	@docker build --tag url-shortener-web:local apps/web
 
-security-check: api-audit web-audit
+secrets-audit:
+	@docker run --rm --volume "$(CURDIR):/repo:ro" $(GITLEAKS_IMAGE) git --redact --verbose /repo
+
+security-check: api-audit web-audit secrets-audit
 
 load-smoke:
 	@./tests/load/run.sh smoke
