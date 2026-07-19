@@ -7,6 +7,8 @@ on:
       - "apps/api/**"
       - "apps/web/package.json"
       - "apps/web/package-lock.json"
+      - "apps/web/Dockerfile"
+      - "deploy/**"
       - "Makefile"
   pull_request:
     paths:
@@ -14,6 +16,8 @@ on:
       - "apps/api/**"
       - "apps/web/package.json"
       - "apps/web/package-lock.json"
+      - "apps/web/Dockerfile"
+      - "deploy/**"
       - "Makefile"
   schedule:
     - cron: "30 1 * * 1"
@@ -27,6 +31,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  configuration:
+    name: Container Configuration Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Validate production Compose configuration
+        run: docker compose -f deploy/docker-compose.yml config --quiet
+        env:
+          AUTH_TOKEN_SECRET: configuration-validation-only
+      - name: Validate load-test Compose configuration
+        run: docker compose -f deploy/docker-compose.load.yml config --quiet
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.72.0
+          scan-type: config
+          scan-ref: .
+          format: table
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
   go-vulnerabilities:
     name: Go Vulnerability Scan
     runs-on: ubuntu-latest

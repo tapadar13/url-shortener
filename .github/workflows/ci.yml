@@ -84,6 +84,7 @@ jobs:
       - name: Scan API image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: v0.72.0
           image-ref: url-shortener-api:ci
           format: table
           exit-code: "1"
@@ -120,6 +121,7 @@ jobs:
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
+          version: v0.72.0
           image-ref: url-shortener-web:ci
           format: table
           exit-code: "1"
