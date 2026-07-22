@@ -1,6 +1,10 @@
 COMPOSE = docker compose -f deploy/docker-compose.yml
+GOVULNCHECK_VERSION = v1.6.0
+ACTIONLINT_VERSION = v1.7.12
+GO_VERSION = $(shell awk '/^go / { print $$2 }' apps/api/go.mod)
+GITLEAKS_IMAGE = ghcr.io/gitleaks/gitleaks:v8.30.1
 
-.PHONY: help api-run api-build api-test api-integration api-vet api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-check web-image mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
+.PHONY: help api-run api-build api-test api-integration api-vet api-audit api-check api-image web-dev web-lint web-test web-e2e web-e2e-full web-build web-audit web-check web-image secrets-audit security-check workflow-lint mongo-up mongo-down redis-up redis-down data-up data-down stack-up stack-down
 .PHONY: load-smoke load-management load-redirects load-down
 
 help:
@@ -10,6 +14,7 @@ help:
 		'api-test     Run Go unit tests' \
 		'api-integration Run MongoDB and Redis integration tests' \
 		'api-vet      Run Go static analysis' \
+		'api-audit    Scan the Go API for reachable vulnerabilities' \
 		'api-check    Run Go tests and static analysis' \
 		'api-image    Build the API container image' \
 		'web-dev      Start the Next.js frontend' \
@@ -18,8 +23,12 @@ help:
 		'web-e2e      Run fast frontend browser tests' \
 		'web-e2e-full Run full-stack browser tests' \
 		'web-build    Build the frontend' \
+		'web-audit    Scan frontend dependencies for high-severity vulnerabilities' \
 		'web-check    Run frontend lint, tests, and build' \
 		'web-image    Build the frontend container image' \
+		'secrets-audit Scan Git history for committed secrets' \
+		'security-check Run vulnerability and secret scans' \
+		'workflow-lint Validate GitHub Actions workflows' \
 		'load-smoke   Run the load-test probe smoke scenario' \
 		'load-management Run the authenticated management load scenario' \
 		'load-redirects Run the redirect throughput load scenario' \
@@ -49,6 +58,9 @@ api-integration:
 api-vet:
 	@cd apps/api && go vet ./...
 
+api-audit:
+	@cd apps/api && GOTOOLCHAIN=go$(GO_VERSION) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
 api-check: api-test api-vet
 
 api-image:
@@ -72,10 +84,21 @@ web-e2e-full:
 web-build:
 	@cd apps/web && npm run build
 
+web-audit:
+	@cd apps/web && npm audit --audit-level=high
+
 web-check: web-lint web-test web-build
 
 web-image:
 	@docker build --tag url-shortener-web:local apps/web
+
+secrets-audit:
+	@docker run --rm --volume "$(CURDIR):/repo:ro" $(GITLEAKS_IMAGE) git --redact --verbose /repo
+
+security-check: api-audit web-audit secrets-audit
+
+workflow-lint:
+	@GOTOOLCHAIN=go$(GO_VERSION) go run github.com/rhysd/actionlint/cmd/actionlint@$(ACTIONLINT_VERSION) .github/workflows/*.yml
 
 load-smoke:
 	@./tests/load/run.sh smoke

@@ -40,7 +40,7 @@ tests/
 
 ## Prerequisites
 
-- Go 1.23.5 or newer
+- Go 1.26.5 or newer
 - Docker and Docker Compose
 - Node.js and npm for the frontend
 
@@ -97,6 +97,7 @@ Run `make help` from the repository root to list local development commands.
 ```bash
 make api-check
 make web-check
+make security-check
 make load-smoke
 make data-up
 make stack-up
